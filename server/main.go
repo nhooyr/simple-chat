@@ -83,7 +83,7 @@ func (s *server) initializeClient(conn *net.Conn) {
 func (cl *client) writeLoop() {
 	for {
 		message := <-cl.inc
-		_, err := (*client.c).Write([]byte(message))
+		_, err := (*cl.c).Write([]byte(message))
 		if err != nil {
 			return
 		}
@@ -97,7 +97,7 @@ func (cl *client) shutdown() {
 	if cl.uname != "" {
 		cl.s.remUname <- cl
 	}
-	(*cl.conn).Close()
+	(*cl.c).Close()
 }
 
 func (cl *client) getTrimmed(w string) (rep string, err error) {
@@ -194,7 +194,7 @@ func (ch *channel) manageChannel() {
 			select {
 			case cl.inc <- message:
 			default:
-				(*cl.conn).Close()
+				(*cl.c).Close()
 			}
 		}
 	}
