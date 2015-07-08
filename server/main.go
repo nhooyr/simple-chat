@@ -131,7 +131,7 @@ func (cli *client) manageClient() {
 			}
 			cli.uName = ""
 		}
-	channelLoop:
+		channelLoop:
 		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
@@ -148,12 +148,12 @@ func (cli *client) manageClient() {
 					cli.shutdown()
 					return
 				}
-				if strings.HasPrefix(m, "/chch") {
+				if strings.HasPrefix(m, "/chch") && (m[5] == ' ' || m[5] == '\n') {
 					cli.s.remFromCh <- cli
 					<-cli.ok
 					cli.chName = strings.TrimSpace(m[6:])
 					break
-				} else if strings.HasPrefix(m, "/chun") {
+				} else if strings.HasPrefix(m, "/chun") && (m[5] == ' ' || m[5] == '\n') {
 					cli.s.remFromCh <- cli
 					<-cli.ok
 					cli.inc <- "*** deregistering username " + cli.uName + "\n"

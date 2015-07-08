@@ -152,7 +152,7 @@ func (cli *client) manageClient() {
 				<-cli.ok
 				cli.chName = strings.TrimSpace(m[6:])
 				break
-			} else if strings.HasPrefix(m, "/chun") {
+			} else if strings.HasPrefix(m, "/chun") && (m[5] == " " || m[5] == "\n"){
 				cli.newuName = strings.TrimSpace(m[6:])
 				if (cli.newuName == "") {
 					cli.newuName, err = cli.getSpaceTrimmed("channel")
