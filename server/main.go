@@ -12,7 +12,7 @@ import (
 
 type server struct {
 	addUname  chan *client
-	remUname  chan *client
+	remUname  chan string
 	addToCh   chan *client
 	remFromCh chan *client
 	remCh     chan bool
@@ -44,7 +44,7 @@ func main() {
 	flag.Parse()
 	s := &server{
 		addUname:  make(chan *client),
-		remUname:  make(chan *client),
+		remUname:  make(chan string),
 		addToCh:   make(chan *client),
 		remFromCh: make(chan *client),
 		remCh:     make(chan bool)}
@@ -97,7 +97,7 @@ func (cli *client) shutdown() {
 		cli.s.remFromCh <- cli
 	}
 	if cli.uname != "" {
-		cli.s.remUname <- cli
+		cli.s.remUname <- cli.uname
 	}
 	(*cli.c).Close()
 }
@@ -115,38 +115,47 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 func (cli *client) manageClient() {
 	var err error
 	for {
-		cli.uname, err = cli.getSpaceTrimmed("username")
-		if err != nil {
-			cli.shutdown()
-			return
-		}
-		cli.s.addUname <- cli
-		if ok := <-cli.ok; ok {
-			break
-		}
-	}
-	for {
-		if cli.chName == "" {
-			cli.chName, err = cli.getSpaceTrimmed("channel")
-			if err != nil {
-				cli.shutdown()
-				return
-			}
-		}
-		cli.s.addToCh <- cli
-		<-cli.ok
 		for {
-			m, err := cli.r.ReadString('\n')
-			if err != nil {
-				cli.shutdown()
-				return
+			if cli.uname == "" {
+				cli.uname, err = cli.getSpaceTrimmed("username")
+				if err != nil {
+					cli.shutdown()
+					return
+				}
 			}
-			if strings.HasPrefix(m, "/chch") {
-				cli.s.remFromCh <- cli
-				cli.chName = strings.TrimSpace(m[5:])
+			cli.s.addUname <- cli
+			if ok := <-cli.ok; ok {
 				break
 			}
-			cli.ch.broadcast <- ">>> " + cli.uname + ": " + m
+		}
+		channelLoop: for {
+			if cli.chName == "" {
+				cli.chName, err = cli.getSpaceTrimmed("channel")
+				if err != nil {
+					cli.shutdown()
+					return
+				}
+			}
+			cli.s.addToCh <- cli
+			<-cli.ok
+			for {
+				m, err := cli.r.ReadString('\n')
+				if err != nil {
+					cli.shutdown()
+					return
+				}
+				if strings.HasPrefix(m, "/chch") {
+					cli.s.remFromCh <- cli
+					cli.chName = strings.TrimSpace(m[5:])
+					break
+				} else if strings.HasPrefix(m, "/chuser") {
+					cli.s.remFromCh <- cli
+					cli.s.remUname <- cli.uname
+					cli.uname = strings.TrimSpace(m[7:])
+					break channelLoop
+				}
+				cli.ch.broadcast <- ">>> " + cli.uname + ": " + m
+			}
 		}
 	}
 }
@@ -178,8 +187,8 @@ func (s *server) manageServer() {
 				broadcast: make(chan string)}
 			go chList[cli.chName].manageChannel()
 			chList[cli.chName].addCli <- cli
-		case cli := <-s.remUname:
-			delete(unameList, cli.uname)
+		case uname := <-s.remUname:
+			delete(unameList, uname)
 		case cli := <-s.remFromCh:
 			cli.ch.remCli <- cli
 			if true, _ := <-s.remCh; true {
