@@ -128,7 +128,8 @@ func (cli *client) manageClient() {
 				break
 			}
 		}
-		channelLoop: for {
+	channelLoop:
+		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
 				if err != nil {
