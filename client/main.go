@@ -11,7 +11,7 @@ import (
 
 func main() {
 	log.SetPrefix("client: ")
-	addr := flag.String("addr", "aubServ:4000", "connect addr")
+	addr := flag.String("addr", "localhost:4000", "connect addr")
 	flag.Parse()
 	conn, err := net.Dial("tcp", *addr)
 	if err != nil {
