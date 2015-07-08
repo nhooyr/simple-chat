@@ -8,215 +8,214 @@ import (
 	"strings"
 )
 
+type server struct {
+	addUname  chan *client
+	remUname  chan *client
+	addToCh   chan *client
+	remFromCh chan *client
+	remCh     chan bool
+}
+
+type channel struct {
+	name      string
+	s         *server
+	addCl     chan *client
+	remCl     chan *client
+	broadcast chan string
+}
+
+type client struct {
+	uname  string
+	id     string
+	chName string
+	c      *net.Conn
+	r      *bufio.Reader
+	ch     *channel
+	s      *server
+	inc    chan string
+	ok     chan bool
+}
+
 func main() {
 	log.SetPrefix("chat server: ")
 	addr := flag.String("addr", ":4000", "listen address")
 	flag.Parse()
 	s := &server{
-		addUsername:    make(chan *client),
-		addToChannel:   make(chan *client),
-		remUsername:    make(chan *client),
-		remFromChannel: make(chan *client),
-		remChannel:     make(chan bool)}
+		addUname:  make(chan *client),
+		addToCh:   make(chan *client),
+		remUname:  make(chan *client),
+		remFromCh: make(chan *client),
+		remCh:     make(chan bool)}
 	log.Fatal(s.listenAndServe(*addr))
 }
 
-type server struct {
-	addToChannel   chan *client
-	addUsername    chan *client
-	remUsername    chan *client
-	remFromChannel chan *client
-	remChannel     chan bool
-}
-
-type channel struct {
-	name      string
-	server    *server
-	addClient chan *client
-	remClient chan *client
-	broadcast chan string
-}
-
-type client struct {
-	username string
-	id       string
-	chanName string
-	conn     *net.Conn
-	channel  *channel
-	reader   *bufio.Reader
-	server   *server
-	message  chan string
-	ok       chan bool
-}
-
-func (server *server) listenAndServe(addr string) error {
+func (s *server) listenAndServe(addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer ln.Close()
 	log.Printf("listening on %s\n", addr)
-	go server.manageServer()
+	go s.manageServer()
 	for {
-		conn, err := ln.Accept()
+		c, err := ln.Accept()
 		if err != nil {
 			return err
 		}
-		log.Printf("new connection from %s\n", conn.RemoteAddr().String())
-		go server.initializeClient(&conn)
+		log.Printf("new connection from %s\n", c.RemoteAddr().String())
+		go s.initializeClient(&c)
 	}
 }
 
-func (server *server) initializeClient(conn *net.Conn) {
+func (s *server) initializeClient(conn *net.Conn) {
 	client := client{
-		conn:    conn,
-		reader:  bufio.NewReader(*conn),
-		server:  server,
-		id:      "@" + (*conn).RemoteAddr().String(),
-		message: make(chan string, 20),
-		ok:      make(chan bool)}
+		c:   conn,
+		r:   bufio.NewReader(*conn),
+		s:   s,
+		id:  "@" + (*conn).RemoteAddr().String(),
+		inc: make(chan string, 20),
+		ok:  make(chan bool)}
 	go client.writeLoop()
-	client.message <- "welcome to the chat server\n"
+	client.inc <- "welcome to the chat server\n"
 	go client.manageClient()
 }
 
-func (client *client) writeLoop() {
+func (cl *client) writeLoop() {
 	for {
-		message := <-client.message
-		_, err := (*client.conn).Write([]byte(message))
+		message := <-cl.inc
+		_, err := (*client.c).Write([]byte(message))
 		if err != nil {
 			return
 		}
 	}
 }
 
-func (c *client) shutdown() {
-	if c.channel != nil {
-		c.server.remFromChannel <- c
+func (cl *client) shutdown() {
+	if cl.ch != nil {
+		cl.s.remFromCh <- cl
 	}
-	if c.username != "" {
-		c.server.remUsername <- c
+	if cl.uname != "" {
+		cl.s.remUname <- cl
 	}
-	(*c.conn).Close()
+	(*cl.conn).Close()
 }
 
-func (c *client) getTrimmed(what string) (fromUser string, err error) {
-	c.message <- what + ": "
-	fromUser, err = c.reader.ReadString('\n')
+func (cl *client) getTrimmed(w string) (rep string, err error) {
+	cl.inc <- w + ": "
+	rep, err = cl.r.ReadString('\n')
 	if err != nil {
 		return
 	}
-	return strings.TrimSpace(fromUser), err
+	return strings.TrimSpace(rep), err
 }
 
-func (client *client) manageClient() {
+func (cl *client) manageClient() {
 	var err error
 	for {
-		client.username, err = client.getTrimmed("username")
+		cl.uname, err = cl.getTrimmed("username")
 		if err != nil {
-			client.shutdown()
+			cl.shutdown()
 			return
 		}
-		client.server.addUsername <- client
-		if ok := <-client.ok; ok {
+		cl.s.addUname <- cl
+		if ok := <-cl.ok; ok {
 			break
 		}
 	}
-	client.chanName = "/chch"
+	cl.chName = "/chch"
 	for {
-		client.chanName = strings.TrimSpace(client.chanName[5:])
-		if client.chanName == "" {
-			client.chanName, err = client.getTrimmed("channel")
+		if cl.chName == "" {
+			cl.chName, err = cl.getTrimmed("channel")
 			if err != nil {
-				client.shutdown()
+				cl.shutdown()
 				return
 			}
 		}
-		client.server.addToChannel <- client
-		<-client.ok
+		cl.s.addToCh <- cl
+		<-cl.ok
 		for {
-			message, err := client.reader.ReadString('\n')
+			m, err := cl.r.ReadString('\n')
 			if err != nil {
-				client.shutdown()
+				cl.shutdown()
 				return
 			}
-			if strings.HasPrefix(message, "/chch") {
-				client.server.remFromChannel <- client
-				client.chanName = message
+			if strings.HasPrefix(m, "/chch") {
+				cl.s.remFromCh <- cl
+				cl.chName = strings.TrimSpace(m)
 				break
 			}
-			client.channel.broadcast <- ">>> " + client.username + ": " + message
+			cl.ch.broadcast <- ">>> " + cl.uname + ": " + m
 		}
 	}
 }
 
-func (server *server) manageServer() {
-	usernameList := make(map[string]*client)
-	channelList := make(map[string]*channel)
+func (s *server) manageServer() {
+	unameList := make(map[string]*client)
+	chList := make(map[string]*channel)
 	for {
 		select {
-		case c := <-server.addUsername:
-			if _, used := usernameList[c.username]; used {
-				c.message <- "username " + c.username + " is not available\n"
+		case c := <-s.addUname:
+			if _, used := unameList[c.uname]; used {
+				c.inc <- "username " + c.uname + " is not available\n"
 				c.ok <- false
 				break
 			}
-			usernameList[c.username] = c
-			c.id = c.username + c.id
+			unameList[c.uname] = c
+			c.id = c.uname + c.id
 			c.ok <- true
-		case c := <-server.addToChannel:
-			if channel, exists := channelList[c.chanName]; exists {
-				channel.addClient <- c
+		case c := <-s.addToCh:
+			if channel, exists := chList[c.chName]; exists {
+				channel.addCl <- c
 				break
 			}
-			channelList[c.chanName] = &channel{
-				name:      c.chanName,
-				server:    c.server,
-				addClient: make(chan *client),
-				remClient: make(chan *client),
+			chList[c.chName] = &channel{
+				name:      c.chName,
+				s:         c.s,
+				addCl:     make(chan *client),
+				remCl:     make(chan *client),
 				broadcast: make(chan string)}
-			go channelList[c.chanName].manageChannel()
-			channelList[c.chanName].addClient <- c
-		case c := <-server.remUsername:
-			delete(usernameList, c.username)
-		case c := <-server.remFromChannel:
-			c.channel.remClient <- c
-			if true, _ := <-server.remChannel; true {
-				delete(channelList, c.channel.name)
+			go chList[c.chName].manageChannel()
+			chList[c.chName].addCl <- c
+		case c := <-s.remUname:
+			delete(unameList, c.uname)
+		case c := <-s.remFromCh:
+			c.ch.remCl <- c
+			if true, _ := <-s.remCh; true {
+				delete(chList, c.ch.name)
 			}
 		}
 	}
 }
 
-func (channel *channel) manageChannel() {
-	clientList := make(map[string]*client)
+func (ch *channel) manageChannel() {
+	clList := make(map[string]*client)
 	broadcast := func(message string) {
-		for _, c := range clientList {
+		for _, cl := range clList {
 			select {
-			case c.message <- message:
+			case cl.inc <- message:
 			default:
-				(*c.conn).Close()
+				(*cl.conn).Close()
 			}
 		}
 	}
 	for {
 		select {
-		case client := <-channel.addClient:
-			client.channel = channel
-			client.ok <- true
-			client.message <- "joining channel " + channel.name + "\n"
-			clientList[client.username] = client
-			broadcast("+++ " + client.username + " has joined the channel\n")
-		case message := <-channel.broadcast:
-			broadcast(message)
-		case client := <-channel.remClient:
-			client.message <- "leaving channel " + channel.name + "\n"
-			delete(clientList, client.username)
-			broadcast("--- " + client.username + " has left the channel\n")
-			if len(clientList) == 0 {
-				channel.server.remChannel <- true
+		case cl := <-ch.addCl:
+			cl.ch = ch
+			cl.ok <- true
+			cl.inc <- "joining channel " + ch.name + "\n"
+			clList[cl.uname] = cl
+			broadcast("+++ " + cl.uname + " has joined the channel\n")
+		case m := <-ch.broadcast:
+			broadcast(m)
+		case cl := <-ch.remCl:
+			cl.inc <- "leaving channel " + ch.name + "\n"
+			delete(clList, cl.uname)
+			broadcast("--- " + cl.uname + " has left the channel\n")
+			if len(clList) == 0 {
+				ch.s.remCh <- true
 			} else {
-				channel.server.remChannel <- false
+				ch.s.remCh <- false
 			}
 		}
 	}
