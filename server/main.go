@@ -85,8 +85,8 @@ func (s *server) initializeClient(c *net.Conn) {
 
 func (cli *client) writeLoop() {
 	for {
-		message := <-cli.inc
-		_, err := (*cli.c).Write([]byte(time.Now().Format("15:04 ") + message))
+		m := <-cli.inc
+		_, err := (*cli.c).Write([]byte(time.Now().Format("15:04 ") + m))
 		if err != nil {
 			return
 		}
@@ -110,8 +110,7 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 	if err != nil {
 		return
 	}
-	reply = strings.TrimSpace(reply)
-	return
+	return strings.TrimSpace(reply)
 }
 
 func (cli *client) manageClient() {
@@ -209,10 +208,10 @@ func (s *server) manageServer() {
 //todo run broadcast in goroutine or no
 func (ch *channel) manageChannel() {
 	cliList := make(map[string]*client)
-	broadcast := func(message string) {
+	broadcast := func(m string) {
 		for _, cli := range cliList {
 			select {
-			case cli.inc <- message:
+			case cli.inc <- m:
 			default:
 				(*cli.c).Close()
 			}

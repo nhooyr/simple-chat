@@ -15,7 +15,7 @@ func main() {
 	flag.Parse()
 	conn, err := net.Dial("tcp", *addr)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 	go func() {
 		stdinReader := bufio.NewReader(os.Stdin)
@@ -23,16 +23,16 @@ func main() {
 			msgToServ, _ := stdinReader.ReadString('\n')
 			_, err = fmt.Fprint(conn, msgToServ)
 			if err != nil {
-				log.Panic(err)
+				log.Fatal(err)
 			}
 		}
 	}()
 	conReader := bufio.NewReader(conn)
 	for {
-		byte, err := conReader.ReadByte()
+		r, _, err := conReader.ReadRune()
 		if err != nil {
-			log.Panic(err)
+			log.Fatal(err)
 		}
-		fmt.Print(string(byte))
+		fmt.Print(string(r))
 	}
 }
