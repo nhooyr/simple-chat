@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -13,7 +12,13 @@ func main() {
 	log.SetPrefix("chat server: ")
 	addr := flag.String("addr", ":4000", "listen address")
 	flag.Parse()
-	log.Fatal(new(server).listenAndServe(*addr))
+	s := &server{
+		addUsername:    make(chan *client),
+		addToChannel:   make(chan *client),
+		remUsername:    make(chan *client),
+		remFromChannel: make(chan *client),
+		remChannel:     make(chan bool)}
+	log.Fatal(s.listenAndServe(*addr))
 }
 
 type server struct {
@@ -35,6 +40,7 @@ type channel struct {
 type client struct {
 	username string
 	id       string
+	chanName string
 	conn     *net.Conn
 	channel  *channel
 	reader   *bufio.Reader
@@ -48,8 +54,8 @@ func (server *server) listenAndServe(addr string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("listening on %s\n", addr)
 	defer ln.Close()
+	log.Printf("listening on %s\n", addr)
 	go server.manageServer()
 	for {
 		conn, err := ln.Accept()
@@ -63,9 +69,12 @@ func (server *server) listenAndServe(addr string) error {
 
 func (server *server) initializeClient(conn *net.Conn) {
 	client := client{
-		conn: conn, reader: bufio.NewReader(*conn),
-		server: server, id: "@" + (*conn).RemoteAddr().String(),
-		message: make(chan string, 20), ok: make(chan bool)}
+		conn:    conn,
+		reader:  bufio.NewReader(*conn),
+		server:  server,
+		id:      "@" + (*conn).RemoteAddr().String(),
+		message: make(chan string, 20),
+		ok:      make(chan bool)}
 	go client.writeLoop()
 	client.message <- "welcome to the chat server\n"
 	go client.manageClient()
@@ -74,22 +83,21 @@ func (server *server) initializeClient(conn *net.Conn) {
 func (client *client) writeLoop() {
 	for {
 		message := <-client.message
-		_, err := fmt.Fprint(*client.conn, message)
+		_, err := (*client.conn).Write([]byte(message))
 		if err != nil {
 			return
 		}
 	}
 }
 
-func (client *client) shutdown() {
-	if client.channel != nil {
-		client.server.remFromChannel <- client
-		<-client.ok
+func (c *client) shutdown() {
+	if c.channel != nil {
+		c.server.remFromChannel <- c
 	}
-	if client.username != "" {
-		client.server.remUsername <- client
+	if c.username != "" {
+		c.server.remUsername <- c
 	}
-	(*client.conn).Close()
+	(*c.conn).Close()
 }
 
 func (c *client) getTrimmed(what string) (fromUser string, err error) {
@@ -114,27 +122,27 @@ func (client *client) manageClient() {
 			break
 		}
 	}
-	message := "/chch"
+	client.chanName = "/chch"
 	for {
-		message = strings.TrimSpace(message[5:])
-		if message == "" {
-			message, err = client.getTrimmed("channel")
+		client.chanName = strings.TrimSpace(client.chanName[5:])
+		if client.chanName == "" {
+			client.chanName, err = client.getTrimmed("channel")
 			if err != nil {
 				client.shutdown()
 				return
 			}
 		}
-		client.channel = &channel{name: message, server: client.server}
 		client.server.addToChannel <- client
+		<-client.ok
 		for {
-			message, err = client.reader.ReadString('\n')
+			message, err := client.reader.ReadString('\n')
 			if err != nil {
 				client.shutdown()
 				return
 			}
 			if strings.HasPrefix(message, "/chch") {
 				client.server.remFromChannel <- client
-				<-client.ok
+				client.chanName = message
 				break
 			}
 			client.channel.broadcast <- ">>> " + client.username + ": " + message
@@ -143,14 +151,8 @@ func (client *client) manageClient() {
 }
 
 func (server *server) manageServer() {
-	server.addUsername = make(chan *client)
-	server.addToChannel = make(chan *client)
-	server.remUsername = make(chan *client)
-	server.remFromChannel = make(chan *client)
-	server.remChannel = make(chan bool)
 	usernameList := make(map[string]*client)
 	channelList := make(map[string]*channel)
-
 	for {
 		select {
 		case c := <-server.addUsername:
@@ -163,15 +165,18 @@ func (server *server) manageServer() {
 			c.id = c.username + c.id
 			c.ok <- true
 		case c := <-server.addToChannel:
-			if channel, exists := channelList[c.channel.name]; exists {
-				c.channel = channel
+			if channel, exists := channelList[c.chanName]; exists {
 				channel.addClient <- c
 				break
 			}
-			channelList[c.channel.name] = c.channel
-			c.channel.addClient = make(chan *client)
-			go c.channel.manageChannel()
-			c.channel.addClient <- c
+			channelList[c.chanName] = &channel{
+				name:      c.chanName,
+				server:    c.server,
+				addClient: make(chan *client),
+				remClient: make(chan *client),
+				broadcast: make(chan string)}
+			go channelList[c.chanName].manageChannel()
+			channelList[c.chanName].addClient <- c
 		case c := <-server.remUsername:
 			delete(usernameList, c.username)
 		case c := <-server.remFromChannel:
@@ -179,29 +184,28 @@ func (server *server) manageServer() {
 			if true, _ := <-server.remChannel; true {
 				delete(channelList, c.channel.name)
 			}
-			c.ok <- true
 		}
 	}
 }
 
 func (channel *channel) manageChannel() {
-	channel.broadcast = make(chan string)
-	channel.remClient = make(chan *client)
 	clientList := make(map[string]*client)
 	broadcast := func(message string) {
 		for _, c := range clientList {
 			select {
 			case c.message <- message:
-			default: //drop message because client way too slow
+			default:
+				(*c.conn).Close()
 			}
 		}
 	}
 	for {
 		select {
 		case client := <-channel.addClient:
+			client.channel = channel
+			client.ok <- true
 			client.message <- "joining channel " + channel.name + "\n"
 			clientList[client.username] = client
-			client.ok <- true
 			broadcast("+++ " + client.username + " has joined the channel\n")
 		case message := <-channel.broadcast:
 			broadcast(message)
