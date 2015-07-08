@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-//time stamps
-
 type server struct {
 	addUname  chan *client
 	remUname  chan string
