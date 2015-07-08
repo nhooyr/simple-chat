@@ -122,7 +122,6 @@ func (cl *client) manageClient() {
 			break
 		}
 	}
-	cl.chName = "/chch"
 	for {
 		if cl.chName == "" {
 			cl.chName, err = cl.getTrimmed("channel")
@@ -141,7 +140,7 @@ func (cl *client) manageClient() {
 			}
 			if strings.HasPrefix(m, "/chch") {
 				cl.s.remFromCh <- cl
-				cl.chName = strings.TrimSpace(m)
+				cl.chName = strings.TrimSpace(m[5:])
 				break
 			}
 			cl.ch.broadcast <- ">>> " + cl.uname + ": " + m
