@@ -12,31 +12,34 @@ import (
 //TODO logging documenting
 
 type server struct {
-	adduName  chan *client
-	remuName  chan string
-	addToCh   chan *client
-	remFromCh chan *client
-	remCh     chan bool
+	adduName    chan *client
+	remuName    chan string
+	changeuName chan *client
+	addToCh     chan *client
+	remFromCh   chan *client
+	remCh       chan bool
 }
 
 type channel struct {
-	name      string
-	s         *server
-	addCli    chan *client
-	remCli    chan *client
-	broadcast chan string
+	name        string
+	s           *server
+	addCli      chan *client
+	remCli      chan *client
+	changeuName chan *client
+	broadcast   chan string
 }
 
 type client struct {
-	uName  string
-	id     string
-	chName string
-	c      *net.Conn
-	r      *bufio.Reader
-	ch     *channel
-	s      *server
-	inc    chan string
-	ok     chan bool
+	uName    string
+	newuName string
+	id       string
+	chName   string
+	c        *net.Conn
+	r        *bufio.Reader
+	ch       *channel
+	s        *server
+	inc      chan string
+	ok       chan bool
 }
 
 func main() {
@@ -46,6 +49,7 @@ func main() {
 	s := &server{
 		adduName:  make(chan *client),
 		remuName:  make(chan string),
+		changeuName: make(chan *client),
 		addToCh:   make(chan *client),
 		remFromCh: make(chan *client),
 		remCh:     make(chan bool)}
@@ -116,53 +120,50 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 func (cli *client) manageClient() {
 	var err error
 	for {
-		for {
-			if cli.uName == "" {
-				cli.uName, err = cli.getSpaceTrimmed("username")
-				if err != nil {
-					cli.shutdown()
-					return
-				}
-			}
-			cli.s.adduName <- cli
-			if ok := <-cli.ok; ok {
-				cli.inc <- "*** registering username " + cli.uName + "\n"
-				break
-			}
-			cli.uName = ""
+		cli.uName, err = cli.getSpaceTrimmed("username")
+		if err != nil {
+			cli.shutdown()
+			return
 		}
-	channelLoop:
+		cli.s.adduName <- cli
+		if ok := <-cli.ok; ok {
+			cli.inc <- "*** registering username " + cli.uName + "\n"
+			break
+		}
+	}
+	for {
+		if cli.chName == "" {
+			cli.chName, err = cli.getSpaceTrimmed("channel")
+			if err != nil {
+				cli.shutdown()
+				return
+			}
+		}
+		cli.s.addToCh <- cli
+		<-cli.ok
 		for {
-			if cli.chName == "" {
-				cli.chName, err = cli.getSpaceTrimmed("channel")
-				if err != nil {
-					cli.shutdown()
-					return
-				}
+			m, err := cli.r.ReadString('\n')
+			if err != nil {
+				cli.shutdown()
+				return
 			}
-			cli.s.addToCh <- cli
-			<-cli.ok
-			for {
-				m, err := cli.r.ReadString('\n')
-				if err != nil {
-					cli.shutdown()
-					return
+			if strings.HasPrefix(m, "/chch") {
+				cli.s.remFromCh <- cli
+				<-cli.ok
+				cli.chName = strings.TrimSpace(m[6:])
+				break
+			} else if strings.HasPrefix(m, "/chun") {
+				cli.newuName = strings.TrimSpace(m[6:])
+				if (cli.newuName == "") {
+					cli.newuName, err = cli.getSpaceTrimmed("channel")
+					if err != nil {
+						cli.shutdown()
+						return
+					}
 				}
-				if strings.HasPrefix(m, "/chch") {
-					cli.s.remFromCh <- cli
-					<-cli.ok
-					cli.chName = strings.TrimSpace(m[6:])
-					break
-				} else if strings.HasPrefix(m, "/chun") {
-					cli.s.remFromCh <- cli
-					<-cli.ok
-					cli.inc <- "*** deregistering username " + cli.uName + "\n"
-					cli.s.remuName <- cli.uName
-					cli.uName = strings.TrimSpace(m[6:])
-					break channelLoop
-				}
-				cli.ch.broadcast <- ">>> " + cli.uName + ": " + m
+				cli.s.changeuName <- cli
 			}
+			cli.ch.broadcast <- ">>> " + cli.uName + ": " + m
 		}
 	}
 }
@@ -193,6 +194,7 @@ func (s *server) manageServer() {
 				s:         cli.s,
 				addCli:    make(chan *client),
 				remCli:    make(chan *client),
+				changeuName: make(chan *client),
 				broadcast: make(chan string)}
 			go chList[cli.chName].manageChannel()
 			chList[cli.chName].addCli <- cli

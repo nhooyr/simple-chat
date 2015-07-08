@@ -13,23 +13,23 @@ func main() {
 	log.SetPrefix("client: ")
 	addr := flag.String("addr", "localhost:4000", "connect addr")
 	flag.Parse()
-	conn, err := net.Dial("tcp", *addr)
+	c, err := net.Dial("tcp", *addr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	go func() {
-		stdinReader := bufio.NewReader(os.Stdin)
+		osr := bufio.NewReader(os.Stdin)
 		for {
-			msgToServ, _ := stdinReader.ReadString('\n')
-			_, err = fmt.Fprint(conn, msgToServ)
+			m, _ := osr.ReadString('\n')
+			_, err = fmt.Fprint(c, m)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 	}()
-	conReader := bufio.NewReader(conn)
+	cr := bufio.NewReader(c)
 	for {
-		r, _, err := conReader.ReadRune()
+		r, _, err := cr.ReadRune()
 		if err != nil {
 			log.Fatal(err)
 		}
