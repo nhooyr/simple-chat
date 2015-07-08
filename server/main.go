@@ -132,7 +132,7 @@ func (cli *client) manageClient() {
 			}
 			cli.uname = ""
 		}
-		channelLoop:
+	channelLoop:
 		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
@@ -154,7 +154,7 @@ func (cli *client) manageClient() {
 					<-cli.ok
 					cli.chName = strings.TrimSpace(m[5:])
 					break
-				} else if strings.HasPrefix(m, "/chuser") {
+				} else if strings.HasPrefix(m, "/chun") {
 					cli.s.remFromCh <- cli
 					<-cli.ok
 					cli.inc <- "*** deregistered username " + cli.uname + "\n"
@@ -206,6 +206,7 @@ func (s *server) manageServer() {
 	}
 }
 
+//todo run broadcast in goroutine or no
 func (ch *channel) manageChannel() {
 	cliList := make(map[string]*client)
 	broadcast := func(message string) {
