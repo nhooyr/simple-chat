@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+//time stamps
+
 type server struct {
 	addUname  chan *client
 	remUname  chan *client
@@ -19,8 +21,8 @@ type server struct {
 type channel struct {
 	name      string
 	s         *server
-	addCl     chan *client
-	remCl     chan *client
+	addCli    chan *client
+	remCli    chan *client
 	broadcast chan string
 }
 
@@ -42,8 +44,8 @@ func main() {
 	flag.Parse()
 	s := &server{
 		addUname:  make(chan *client),
-		addToCh:   make(chan *client),
 		remUname:  make(chan *client),
+		addToCh:   make(chan *client),
 		remFromCh: make(chan *client),
 		remCh:     make(chan bool)}
 	log.Fatal(s.listenAndServe(*addr))
@@ -55,8 +57,8 @@ func (s *server) listenAndServe(addr string) error {
 		return err
 	}
 	defer ln.Close()
-	log.Printf("listening on %s\n", addr)
 	go s.manageServer()
+	log.Printf("listening on %s\n", addr)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -69,16 +71,15 @@ func (s *server) listenAndServe(addr string) error {
 
 func (s *server) initializeClient(c *net.Conn) {
 	cl := &client{
+		id:  "_@" + (*c).RemoteAddr().String(),
 		c:   c,
 		r:   bufio.NewReader(*c),
 		s:   s,
-		id:  "@" + (*c).RemoteAddr().String(),
 		inc: make(chan string, 20),
 		ok:  make(chan bool)}
 	go cl.writeLoop()
 	cl.inc <- "welcome to the chat server\n"
 	go cl.manageClient()
-	log.Printf("initalized client %s\n", cl.id)
 }
 
 func (cli *client) writeLoop() {
@@ -98,8 +99,7 @@ func (cli *client) shutdown() {
 	if cli.uname != "" {
 		cli.s.remUname <- cli
 	}
-	(*cl.c).Close()
-	log.Printf("shutdown %s\n", cli.id)
+	(*cli.c).Close()
 }
 
 func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
@@ -109,7 +109,6 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 		return
 	}
 	reply = strings.TrimSpace(reply)
-	log.Printf("got %s %s for %s", what, reply, cli.id)
 	return
 }
 
@@ -145,11 +144,6 @@ func (cli *client) manageClient() {
 			if strings.HasPrefix(m, "/chch") {
 				cli.s.remFromCh <- cli
 				cli.chName = strings.TrimSpace(m[5:])
-				if cli.chName == "" {
-					log.Printf("changing channel for %s", cli.id)
-				} else {
-					log.Printf("changing to channel %s for %s", cli.chName, cli.id)
-				}
 				break
 			}
 			cli.ch.broadcast <- ">>> " + cli.uname + ": " + m
@@ -171,28 +165,25 @@ func (s *server) manageServer() {
 			unameList[cli.uname] = cli
 			cli.id = cli.uname + cli.id
 			cli.ok <- true
-			log.Printf("registered %s", cli.id)
 		case cli := <-s.addToCh:
 			if channel, exists := chList[cli.chName]; exists {
-				channel.addCl <- cli
+				channel.addCli <- cli
 				break
 			}
 			chList[cli.chName] = &channel{
 				name:      cli.chName,
 				s:         cli.s,
-				addCl:     make(chan *client),
-				remCl:     make(chan *client),
+				addCli:    make(chan *client),
+				remCli:    make(chan *client),
 				broadcast: make(chan string)}
-			log.Printf("created channel %s", cli.chName)
 			go chList[cli.chName].manageChannel()
-			chList[cli.chName].addCl <- cli
+			chList[cli.chName].addCli <- cli
 		case cli := <-s.remUname:
 			delete(unameList, cli.uname)
 		case cli := <-s.remFromCh:
-			cli.ch.remCl <- cli
+			cli.ch.remCli <- cli
 			if true, _ := <-s.remCh; true {
 				delete(chList, cli.ch.name)
-				log.Printf("shutdown channel %s", cli.ch.name)
 			}
 		}
 	}
@@ -211,20 +202,17 @@ func (ch *channel) manageChannel() {
 	}
 	for {
 		select {
-		case cli := <-ch.addCl:
+		case cli := <-ch.addCli:
 			cli.inc <- "joining channel " + ch.name + "\n"
 			cli.ch = ch
 			cli.ok <- true
 			cliList[cli.uname] = cli
-			log.Printf("%s joined channel %s", cli.id, ch.name)
 			broadcast("+++ " + cli.uname + " has joined the channel\n")
 		case m := <-ch.broadcast:
-			log.Printf("broadcast %s", m)
 			broadcast(m)
-		case cli := <-ch.remCl:
+		case cli := <-ch.remCli:
 			cli.inc <- "leaving channel " + ch.name + "\n"
 			delete(cliList, cli.uname)
-			log.Printf("%s left channel %s", cli.id, ch.name)
 			broadcast("--- " + cli.uname + " has left the channel\n")
 			if len(cliList) == 0 {
 				ch.s.remCh <- true
