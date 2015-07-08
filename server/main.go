@@ -96,6 +96,7 @@ func (cli *client) writeLoop() {
 func (cli *client) shutdown() {
 	if cli.ch != nil {
 		cli.s.remFromCh <- cli
+		<-cli.ok
 	}
 	if cli.uname != "" {
 		cli.s.remUname <- cli.uname
@@ -129,7 +130,7 @@ func (cli *client) manageClient() {
 				break
 			}
 		}
-	channelLoop:
+		channelLoop:
 		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
