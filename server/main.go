@@ -127,10 +127,12 @@ func (cli *client) manageClient() {
 			}
 			cli.s.addUname <- cli
 			if ok := <-cli.ok; ok {
+				cli.inc <- "*** registered username " + cli.uname + "\n"
 				break
 			}
+			cli.uname = ""
 		}
-	channelLoop:
+		channelLoop:
 		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
@@ -155,6 +157,7 @@ func (cli *client) manageClient() {
 				} else if strings.HasPrefix(m, "/chuser") {
 					cli.s.remFromCh <- cli
 					<-cli.ok
+					cli.inc <- "*** deregistered username " + cli.uname + "\n"
 					cli.s.remUname <- cli.uname
 					cli.uname = strings.TrimSpace(m[7:])
 					break channelLoop
@@ -172,7 +175,7 @@ func (s *server) manageServer() {
 		select {
 		case cli := <-s.addUname:
 			if _, used := unameList[cli.uname]; used {
-				cli.inc <- "username " + cli.uname + " is not available\n"
+				cli.inc <- "*** username " + cli.uname + " is not available\n"
 				cli.ok <- false
 				break
 			}
