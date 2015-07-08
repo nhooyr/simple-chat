@@ -6,7 +6,10 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
+
+//TODO logging documenting
 
 type server struct {
 	addUname  chan *client
@@ -76,14 +79,14 @@ func (s *server) initializeClient(c *net.Conn) {
 		inc: make(chan string, 20),
 		ok:  make(chan bool)}
 	go cl.writeLoop()
-	cl.inc <- "welcome to the chat server\n"
+	cl.inc <- "*** welcome to the chat server\n"
 	go cl.manageClient()
 }
 
 func (cli *client) writeLoop() {
 	for {
 		message := <-cli.inc
-		_, err := (*cli.c).Write([]byte(message))
+		_, err := (*cli.c).Write([]byte( time.Now().Format("15:04 ") + message))
 		if err != nil {
 			return
 		}
@@ -101,7 +104,7 @@ func (cli *client) shutdown() {
 }
 
 func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
-	cli.inc <- what + ": "
+	cli.inc <- "*** "+ what + ": "
 	reply, err = cli.r.ReadString('\n')
 	if err != nil {
 		return
@@ -126,7 +129,7 @@ func (cli *client) manageClient() {
 				break
 			}
 		}
-	channelLoop:
+		channelLoop:
 		for {
 			if cli.chName == "" {
 				cli.chName, err = cli.getSpaceTrimmed("channel")
@@ -145,10 +148,12 @@ func (cli *client) manageClient() {
 				}
 				if strings.HasPrefix(m, "/chch") {
 					cli.s.remFromCh <- cli
+					<- cli.ok
 					cli.chName = strings.TrimSpace(m[5:])
 					break
 				} else if strings.HasPrefix(m, "/chuser") {
 					cli.s.remFromCh <- cli
+					<- cli.ok
 					cli.s.remUname <- cli.uname
 					cli.uname = strings.TrimSpace(m[7:])
 					break channelLoop
@@ -211,7 +216,7 @@ func (ch *channel) manageChannel() {
 	for {
 		select {
 		case cli := <-ch.addCli:
-			cli.inc <- "joining channel " + ch.name + "\n"
+			cli.inc <- "*** joining channel " + ch.name + "\n"
 			cli.ch = ch
 			cli.ok <- true
 			cliList[cli.uname] = cli
@@ -219,8 +224,9 @@ func (ch *channel) manageChannel() {
 		case m := <-ch.broadcast:
 			broadcast(m)
 		case cli := <-ch.remCli:
-			cli.inc <- "leaving channel " + ch.name + "\n"
+			cli.inc <- "*** leaving channel " + ch.name + "\n"
 			delete(cliList, cli.uname)
+			cli.ok <- true
 			broadcast("--- " + cli.uname + " has left the channel\n")
 			if len(cliList) == 0 {
 				ch.s.remCh <- true
