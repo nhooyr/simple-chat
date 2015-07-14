@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-//TODO logging, naming, documenting, message people
+//TODO logging, naming, documenting
 type server struct {
 	addUName   chan *client
 	remUName   chan string
@@ -103,7 +103,6 @@ func (cli *client) writeLoop() {
 func (cli *client) shutdown() {
 	if cli.ch != nil {
 		cli.s.remFromCh <- cli
-		<-cli.ok
 	}
 	if cli.uName != "" {
 		cli.s.remUName <- cli.uName
@@ -152,47 +151,42 @@ func (cli *client) manageClient() {
 	if err != nil {
 		return
 	}
+	cli.inc <- "??? /help for usage info\n"
 	for {
 		cli.s.addToCh <- cli
 		<-cli.ok
-	readLoop:
+		readLoop:
 		for {
 			m, err := cli.r.ReadString('\n')
 			if err != nil {
 				cli.shutdown()
 				return
 			}
+			m = strings.TrimSpace(m)
 			switch {
-			case strings.HasPrefix(m, "/chch"):
-				if m[5] == ' ' && m[6] != ' ' {
-					cli.s.remFromCh <- cli
-					<-cli.ok
-					cli.chName = strings.TrimSpace(m[6:])
-					break readLoop
-				}
-				cli.inc <- "??? /chch <newChannelName>\n"
+			case strings.HasPrefix(m, "/chch "):
+				cli.s.remFromCh <- cli
+				cli.chName = m[6:]
+				break readLoop
+			case strings.HasPrefix(m, "/chun "):
+				cli.newUName = m[6:]
+				cli.registerNewUName()
 				continue
-			case strings.HasPrefix(m, "/chun"):
-				if m[5] == ' ' && m[6] != ' ' {
-					cli.newUName = strings.TrimSpace(m[6:])
-					cli.registerNewUName()
-				} else {
-					cli.inc <- "??? /chun <newUsername>\n"
-				}
+			case strings.HasPrefix(m, "/msg ") && strings.Count(m, " ") >= 2:
+				m = m[5:]
+				i := strings.Index(m, " ")
+				cli.s.messageCli <- message{senderInc: cli.inc, recipient: m[:i],
+					payload: "### " + cli.uName + ": " + strings.TrimSpace(m[i+1:]) + "\n"}
 				continue
-			case strings.HasPrefix(m, "/m"):
-				if strings.Count(m, " ") >= 2 {
-					m = m[3:]
-					i := strings.Index(m, " ")
-					args := []string{m[:i], m[i+1:]}
-					cli.s.messageCli <- message{senderInc: cli.inc, recipient: args[0],
-						payload: "--> " + cli.uName + ": " + strings.TrimSpace(args[1]) + "\n"}
-				} else {
-					cli.inc <- "??? /m <recipientUsername> <message>\n"
-				}
+			case m == "/close":
+				cli.shutdown()
+				return
+			case m == "/help":
+				tS := time.Now().Format("15:04 ")
+				cli.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <username> 	     - change username\n" + tS + "??? /msg  <username> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
 				continue
 			}
-			cli.ch.broadcast <- ">>> " + cli.uName + ": " + m
+			cli.ch.broadcast <- "--> " + cli.uName + ": " + m + "\n"
 		}
 	}
 }
@@ -211,13 +205,12 @@ func (s *server) manageServer() {
 			switch cli.uName {
 			case "":
 				cli.uName = cli.newUName
+				cli.ok <- true
 			default:
 				cli.inc <- "*** deregistering username " + cli.uName + "\n"
 				delete(uNameList, cli.uName)
 				cli.ch.changeUName <- cli
-				<-s.ok
 			}
-			cli.ok <- true
 		case uName := <-s.remUName:
 			delete(uNameList, uName)
 		case cli := <-s.addToCh:
@@ -240,10 +233,11 @@ func (s *server) manageServer() {
 				delete(chList, cli.ch.name)
 			}
 		case m := <-s.messageCli:
-			if rec, exists := uNameList[m.recipient]; exists {
+			switch rec, exists := uNameList[m.recipient]; exists {
+			case true:
 				rec.inc <- m.payload
 				m.senderInc <- "*** message sent\n"
-			} else {
+			default:
 				m.senderInc <- "*** user " + m.recipient + " is not registered\n"
 			}
 		}
@@ -266,13 +260,12 @@ func (ch *channel) manageChannel() {
 		case cli := <-ch.addCli:
 			cli.inc <- "*** joining channel " + ch.name + "\n"
 			cli.ch = ch
-			cli.ok <- true
 			cliList[cli.uName] = cli
+			cli.ok <- true
 			broadcast("+++ " + cli.uName + " has joined the channel\n")
 		case cli := <-ch.remCli:
 			cli.inc <- "*** leaving channel " + ch.name + "\n"
 			delete(cliList, cli.uName)
-			cli.ok <- true
 			switch len(cliList) {
 			case 0:
 				ch.s.ok <- false
@@ -284,9 +277,9 @@ func (ch *channel) manageChannel() {
 			cli.inc <- "*** changing username to " + cli.newUName + "\n"
 			delete(cliList, cli.uName)
 			cliList[cli.newUName] = cli
-			broadcast("/// " + cli.uName + " now known as " + cli.newUName + "\n")
 			cli.uName = cli.newUName
-			cli.s.ok <- true
+			cli.ok <- true
+			broadcast("/// " + cli.uName + " now known as " + cli.newUName + "\n")
 		case m := <-ch.broadcast:
 			broadcast(m)
 		}
