@@ -31,7 +31,7 @@ func main() {
 	for {
 		r, _, err := cr.ReadRune()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal('\n', err)
 		}
 		fmt.Print(string(r))
 	}
