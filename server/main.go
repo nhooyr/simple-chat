@@ -5,14 +5,17 @@ import (
 	"flag"
 	"log"
 	"net"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
-//TODO logging, naming, documenting
+//TODO documentation
+
 type server struct {
 	addUName   chan *client
-	remUName   chan string
+	remUName   chan *client
 	addToCh    chan *client
 	remFromCh  chan *client
 	ok         chan bool
@@ -32,6 +35,7 @@ type client struct {
 	uName    string
 	newUName string
 	chName   string
+	id       string
 	c        *net.Conn
 	r        *bufio.Reader
 	ch       *channel
@@ -41,9 +45,9 @@ type client struct {
 }
 
 type message struct {
-	senderInc chan string
-	recipient string
+	sender    *client
 	payload   string
+	recipient string
 }
 
 func main() {
@@ -52,7 +56,7 @@ func main() {
 	flag.Parse()
 	s := &server{
 		addUName:   make(chan *client),
-		remUName:   make(chan string),
+		remUName:   make(chan *client),
 		addToCh:    make(chan *client),
 		remFromCh:  make(chan *client),
 		ok:         make(chan bool),
@@ -67,27 +71,29 @@ func (s *server) listenAndServe(addr string) error {
 	}
 	defer ln.Close()
 	go s.manageServer()
-	log.Printf("listening on %s\n", addr)
+	log.Printf("%s is listening", addr)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
 			return err
 		}
-		log.Printf("new connection from %s\n", c.RemoteAddr().String())
+		log.Printf("%s established new connection", c.RemoteAddr().String())
 		go s.initializeClient(&c)
 	}
 }
 
 func (s *server) initializeClient(c *net.Conn) {
-	cl := &client{
+	log.Printf("%s initializing", (*c).RemoteAddr().String())
+	cli := &client{
+		id:  (*c).RemoteAddr().String(),
 		c:   c,
 		r:   bufio.NewReader(*c),
 		s:   s,
 		inc: make(chan string, 2),
 		ok:  make(chan bool)}
-	go cl.writeLoop()
-	cl.inc <- "*** welcome to the chat server\n"
-	go cl.manageClient()
+	go cli.writeLoop()
+	cli.inc <- "*** welcome to the chat server\n"
+	go cli.manageClient()
 }
 
 func (cli *client) writeLoop() {
@@ -101,11 +107,12 @@ func (cli *client) writeLoop() {
 }
 
 func (cli *client) shutdown() {
+	log.Printf("%s shutting down", cli.id)
 	if cli.ch != nil {
 		cli.s.remFromCh <- cli
 	}
 	if cli.uName != "" {
-		cli.s.remUName <- cli.uName
+		cli.s.remUName <- cli
 	}
 	(*cli.c).Close()
 }
@@ -118,17 +125,29 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 			cli.shutdown()
 			return
 		}
-		if reply == "\n" {
+		if reply == "" {
 			continue
 		}
-		return strings.TrimSpace(reply), err
+		return escapeControlChar(strings.TrimSpace(reply)), err
 	}
 }
 
+var controlChar = regexp.MustCompile("[[:cntrl:]]")
+
+func escapeControlChar(in string) (out string) {
+	return string(controlChar.ReplaceAllFunc([]byte(in),
+		func(unescaped []byte) (escaped []byte) {
+			escaped = []byte(strconv.Quote(string(unescaped)))
+			return escaped[1 : len(escaped)-1]
+		}))
+}
+
 func (cli *client) registerNewUName() (ok bool) {
+	log.Printf("%s registering %s", cli.id, cli.newUName)
 	cli.inc <- "*** registering username " + cli.newUName + "\n"
 	cli.s.addUName <- cli
 	if ok = <-cli.ok; ok {
+		cli.id = cli.uName + "@" + (*cli.c).RemoteAddr().String()
 		return
 	}
 	cli.inc <- "*** username " + cli.newUName + " is not available\n"
@@ -155,18 +174,19 @@ func (cli *client) manageClient() {
 	for {
 		cli.s.addToCh <- cli
 		<-cli.ok
-		readLoop:
+	readLoop:
 		for {
 			m, err := cli.r.ReadString('\n')
 			if err != nil {
 				cli.shutdown()
 				return
 			}
-			m = strings.TrimSpace(m)
+			m = escapeControlChar(strings.TrimSpace(m))
 			switch {
 			case strings.HasPrefix(m, "/chch "):
-				cli.s.remFromCh <- cli
 				cli.chName = m[6:]
+				log.Printf("%s changing to channel %s from %s", cli.id, cli.chName, cli.ch.name)
+				cli.s.remFromCh <- cli
 				break readLoop
 			case strings.HasPrefix(m, "/chun "):
 				cli.newUName = m[6:]
@@ -175,8 +195,8 @@ func (cli *client) manageClient() {
 			case strings.HasPrefix(m, "/msg ") && strings.Count(m, " ") >= 2:
 				m = m[5:]
 				i := strings.Index(m, " ")
-				cli.s.messageCli <- message{senderInc: cli.inc, recipient: m[:i],
-					payload: "### " + cli.uName + ": " + strings.TrimSpace(m[i+1:]) + "\n"}
+				cli.s.messageCli <- message{sender: cli, recipient: m[:i],
+					payload: strings.TrimSpace(m[i+1:])}
 				continue
 			case m == "/close":
 				cli.shutdown()
@@ -186,7 +206,8 @@ func (cli *client) manageClient() {
 				cli.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <username> 	     - change username\n" + tS + "??? /msg  <username> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
 				continue
 			}
-			cli.ch.broadcast <- "--> " + cli.uName + ": " + m + "\n"
+			log.Printf("%s broadcasting %s in channel %s", cli.id, m, cli.chName)
+			cli.ch.broadcast <- "--> " + cli.uName + ": " + m
 		}
 	}
 }
@@ -202,22 +223,24 @@ func (s *server) manageServer() {
 				break
 			}
 			uNameList[cli.newUName] = cli
-			switch cli.uName {
-			case "":
+			if cli.uName == "" {
 				cli.uName = cli.newUName
 				cli.ok <- true
-			default:
+			} else {
+				log.Printf("%s deregistering username", cli.id)
 				cli.inc <- "*** deregistering username " + cli.uName + "\n"
 				delete(uNameList, cli.uName)
 				cli.ch.changeUName <- cli
 			}
-		case uName := <-s.remUName:
-			delete(uNameList, uName)
+		case cli := <-s.remUName:
+			log.Printf("%s deregistering username", cli.id)
+			delete(uNameList, cli.uName)
 		case cli := <-s.addToCh:
 			if channel, exists := chList[cli.chName]; exists {
 				channel.addCli <- cli
 				break
 			}
+			log.Printf("%s creating channel %s", cli.id, cli.chName)
 			chList[cli.chName] = &channel{
 				name:        cli.chName,
 				s:           cli.s,
@@ -233,12 +256,12 @@ func (s *server) manageServer() {
 				delete(chList, cli.ch.name)
 			}
 		case m := <-s.messageCli:
-			switch rec, exists := uNameList[m.recipient]; exists {
-			case true:
-				rec.inc <- m.payload
-				m.senderInc <- "*** message sent\n"
-			default:
-				m.senderInc <- "*** user " + m.recipient + " is not registered\n"
+			if rec, exists := uNameList[m.recipient]; exists {
+				log.Printf("%s pming %s to %s", m.sender.id, m.payload, rec.id)
+				rec.inc <- "### " + m.sender.uName + ": " + m.payload + "\n"
+				m.sender.inc <- "*** message sent\n"
+			} else {
+				m.sender.inc <- "*** user " + m.recipient + " is not registered\n"
 			}
 		}
 	}
@@ -249,7 +272,7 @@ func (ch *channel) manageChannel() {
 	broadcast := func(m string) {
 		for _, cli := range cliList {
 			select {
-			case cli.inc <- m:
+			case cli.inc <- m + "\n":
 			default:
 				(*cli.c).Close()
 			}
@@ -258,28 +281,31 @@ func (ch *channel) manageChannel() {
 	for {
 		select {
 		case cli := <-ch.addCli:
+			log.Printf("%s joining channel %s", cli.id, ch.name)
 			cli.inc <- "*** joining channel " + ch.name + "\n"
 			cli.ch = ch
 			cliList[cli.uName] = cli
 			cli.ok <- true
-			broadcast("+++ " + cli.uName + " has joined the channel\n")
+			broadcast("+++ " + cli.uName + " has joined the channel")
 		case cli := <-ch.remCli:
+			log.Printf("%s leaving channel %s", cli.id, ch.name)
 			cli.inc <- "*** leaving channel " + ch.name + "\n"
 			delete(cliList, cli.uName)
-			switch len(cliList) {
-			case 0:
+			if len(cliList) == 0 {
+				log.Printf("%s shutting down channel %s", cli.id, ch.name)
 				ch.s.ok <- false
-			default:
+			} else {
 				ch.s.ok <- true
-				broadcast("--- " + cli.uName + " has left the channel\n")
+				broadcast("--- " + cli.uName + " has left the channel")
 			}
 		case cli := <-ch.changeUName:
+			log.Printf("%s changing username to %s", cli.id, cli.newUName)
 			cli.inc <- "*** changing username to " + cli.newUName + "\n"
 			delete(cliList, cli.uName)
 			cliList[cli.newUName] = cli
+			broadcast("/// " + cli.uName + " now known as " + cli.newUName)
 			cli.uName = cli.newUName
 			cli.ok <- true
-			broadcast("/// " + cli.uName + " now known as " + cli.newUName + "\n")
 		case m := <-ch.broadcast:
 			broadcast(m)
 		}

@@ -21,7 +21,7 @@ func main() {
 		osr := bufio.NewReader(os.Stdin)
 		for {
 			m, _ := osr.ReadString('\n')
-			_, err = fmt.Fprint(c, m)
+			_, err = fmt.Fprintf(c, "%s", m)
 			if err != nil {
 				log.Fatal(err)
 			}
