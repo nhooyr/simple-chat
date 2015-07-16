@@ -89,7 +89,7 @@ func (s *server) initializeClient(c *net.Conn) {
 		c:   c,
 		r:   bufio.NewReader(*c),
 		s:   s,
-		inc: make(chan string, 2),
+		inc: make(chan string, 3),
 		ok:  make(chan bool)}
 	go cli.writeLoop()
 	cli.inc <- "*** welcome to the chat server\n"
@@ -125,14 +125,13 @@ func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
 			cli.shutdown()
 			return
 		}
-		if reply == "" {
-			continue
+		if reply = escapeControlChar(strings.TrimSpace(reply)); reply != "" {
+			return reply, err
 		}
-		return escapeControlChar(strings.TrimSpace(reply)), err
 	}
 }
 
-var controlChar = regexp.MustCompile("[[:cntrl:]]")
+var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
 
 func escapeControlChar(in string) (out string) {
 	return string(controlChar.ReplaceAllFunc([]byte(in),
@@ -143,11 +142,11 @@ func escapeControlChar(in string) (out string) {
 }
 
 func (cli *client) registerNewUName() (ok bool) {
-	log.Printf("%s registering %s", cli.id, cli.newUName)
+	log.Printf("%s registering username %s", cli.id, cli.newUName)
 	cli.inc <- "*** registering username " + cli.newUName + "\n"
 	cli.s.addUName <- cli
 	if ok = <-cli.ok; ok {
-		cli.id = cli.uName + "@" + (*cli.c).RemoteAddr().String()
+		cli.id = cli.uName + ":" + (*cli.c).RemoteAddr().String()
 		return
 	}
 	cli.inc <- "*** username " + cli.newUName + " is not available\n"
@@ -174,7 +173,7 @@ func (cli *client) manageClient() {
 	for {
 		cli.s.addToCh <- cli
 		<-cli.ok
-	readLoop:
+		readLoop:
 		for {
 			m, err := cli.r.ReadString('\n')
 			if err != nil {
