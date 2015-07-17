@@ -1,5 +1,6 @@
 package main
 
+//lel
 import (
 	"bufio"
 	"flag"
@@ -173,7 +174,7 @@ func (cli *client) manageClient() {
 	for {
 		cli.s.addToCh <- cli
 		<-cli.ok
-		readLoop:
+	readLoop:
 		for {
 			m, err := cli.r.ReadString('\n')
 			if err != nil {
