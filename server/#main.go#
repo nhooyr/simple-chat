@@ -1,6 +1,5 @@
-package main
+:qpackage main
 
-//LLL
 import (
 	"bufio"
 	"flag"
