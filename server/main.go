@@ -1,6 +1,5 @@
 package main
 
-//LLL
 import (
 	"bufio"
 	"flag"
