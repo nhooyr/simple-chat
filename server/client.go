@@ -22,65 +22,6 @@ type client struct {
 	ok          chan bool
 }
 
-func (cl *client) writeLoop() {
-	for {
-		m := <-cl.inc
-		_, err := (*cl.c).Write([]byte(m))
-		if err != nil {
-			return
-		}
-	}
-}
-
-func (cl *client) shutdown() {
-	log.Printf("%s shutting down", cl.id)
-	(*cl.c).Write([]byte("*** shutting down\n"))
-	(*cl.c).Close()
-	if cl.ch != nil {
-		cl.ch.rmClient <- cl
-	}
-	if cl.uname != "" {
-		cl.serv.remUname <- cl
-	}
-}
-
-func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
-	for {
-		cl.inc <- "=== " + what + ": "
-		reply, err = cl.r.ReadString('\n')
-		if err != nil {
-			cl.shutdown()
-			return
-		}
-		if reply = escapeUnsafe(strings.TrimSpace(reply)); reply != "" {
-			return
-		}
-	}
-}
-
-var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
-
-func escapeUnsafe(in string) string {
-	return string(controlChar.ReplaceAllFunc([]byte(in),
-		func(in []byte) (out []byte) {
-			out = []byte(strconv.Quote(string(in)))
-			return out[1 : len(out)-1]
-		}))
-}
-
-func (cl *client) registerNewUname() (ok bool) {
-	log.Printf("%s registering uname %s", cl.id, cl.newUname)
-	cl.inc <- "*** registering uname " + cl.newUname + "\n"
-	cl.serv.addUname <- cl
-	if ok = <-cl.ok; ok {
-		cl.id = cl.uname + ":" + (*cl.c).RemoteAddr().String()
-		return
-	}
-	cl.inc <- "*** uname " + cl.newUname + " is not available\n"
-	cl.newUname = ""
-	return
-}
-
 func (cl *client) manage() {
 	var err error
 	for {
@@ -143,4 +84,63 @@ func (cl *client) manage() {
 			cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 		}
 	}
+}
+
+func (cl *client) writeLoop() {
+	for {
+		m := <-cl.inc
+		_, err := (*cl.c).Write([]byte(m))
+		if err != nil {
+			return
+		}
+	}
+}
+
+func (cl *client) shutdown() {
+	log.Printf("%s shutting down", cl.id)
+	(*cl.c).Write([]byte("*** shutting down\n"))
+	(*cl.c).Close()
+	if cl.ch != nil {
+		cl.ch.rmClient <- cl
+	}
+	if cl.uname != "" {
+		cl.serv.remUname <- cl
+	}
+}
+
+func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
+	for {
+		cl.inc <- "=== " + what + ": "
+		reply, err = cl.r.ReadString('\n')
+		if err != nil {
+			cl.shutdown()
+			return
+		}
+		if reply = escapeUnsafe(strings.TrimSpace(reply)); reply != "" {
+			return
+		}
+	}
+}
+
+var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
+
+func escapeUnsafe(in string) string {
+	return string(controlChar.ReplaceAllFunc([]byte(in),
+		func(in []byte) (out []byte) {
+			out = []byte(strconv.Quote(string(in)))
+			return out[1 : len(out)-1]
+		}))
+}
+
+func (cl *client) registerNewUname() (ok bool) {
+	log.Printf("%s registering uname %s", cl.id, cl.newUname)
+	cl.inc <- "*** registering uname " + cl.newUname + "\n"
+	cl.serv.addUname <- cl
+	if ok = <-cl.ok; ok {
+		cl.id = cl.uname + ":" + (*cl.c).RemoteAddr().String()
+		return
+	}
+	cl.inc <- "*** uname " + cl.newUname + " is not available\n"
+	cl.newUname = ""
+	return
 }
