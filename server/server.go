@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"time"
 )
 
 type server struct {
@@ -69,6 +70,8 @@ func (s *server) manageServer() {
 			}
 		case cli := <-s.remUName:
 			log.Printf("%s deregistering username", cli.id)
+			(*cli.c).Write([]byte(time.Now().Format("15:04 ") + "*** deregistering username\n"))
+			cli.ok <- true
 			delete(uNameList, cli.uName)
 		case cli := <-s.addToCh:
 			if channel, exists := chList[cli.chName]; exists {

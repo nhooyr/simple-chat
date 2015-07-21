@@ -35,12 +35,15 @@ func (cli *client) writeLoop() {
 
 func (cli *client) shutdown() {
 	log.Printf("%s shutting down", cli.id)
+	cli.inc <- "*** shutting down\n"
 	if cli.ch != nil {
 		cli.s.remFromCh <- cli
 	}
 	if cli.uName != "" {
 		cli.s.remUName <- cli
+		<- cli.ok
 	}
+
 	(*cli.c).Close()
 }
 
