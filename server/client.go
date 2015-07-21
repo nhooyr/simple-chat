@@ -35,14 +35,14 @@ func (cl *client) writeLoop() {
 
 func (cl *client) shutdown() {
 	log.Printf("%s shutting down", cl.id)
-	cl.inc <- "*** shutting down\n"
+	(*cl.c).Write([]byte("*** shutting down\n"))
+	(*cl.c).Close()
 	if cl.ch != nil {
 		cl.ch.rmClient <- cl
 	}
 	if cl.uname != "" {
 		cl.serv.remUname <- cl
 	}
-	(*cl.c).Close()
 }
 
 func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
@@ -113,18 +113,22 @@ func (cl *client) manage() {
 			case strings.HasPrefix(m, "/chch "):
 				cl.newChanName = m[6:]
 				log.Printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
-				cl.inc <- "changing to channel " + cl.newChanName
+				cl.inc <- "changing to channel " + cl.newChanName + "\n"
 				cl.ch.rmClient <- cl
 				break readLoop
 			case strings.HasPrefix(m, "/chun "):
 				cl.newUname = m[6:]
 				cl.registerNewUname()
 				continue
-			case strings.HasPrefix(m, "/msg ") && strings.Count(m, " ") >= 2:
-				m = m[5:]
-				i := strings.Index(m, " ")
-				cl.serv.msgUser <- message{from: cl, to: m[:i],
-					payload: strings.TrimSpace(m[i+1:])}
+			case strings.HasPrefix(m, "/msg "):
+				if strings.Count(m, " ") >= 2 {
+					m = m[5:]
+					i := strings.Index(m, " ")
+					cl.serv.msgUser <- message{from: cl, to: m[:i],
+						payload: strings.TrimSpace(m[i+1:])}
+				} else {
+					cl.inc <- "*** error: no message\n"
+				}
 				continue
 			case m == "/close":
 				cl.shutdown()

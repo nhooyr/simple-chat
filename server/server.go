@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"log"
 	"net"
-	"time"
 )
 
 type server struct {
@@ -89,9 +88,9 @@ func (s *server) manage() {
 			delete(chanList, name)
 		case m := <-s.msgUser:
 			if to, exists := unameList[m.to]; exists {
-				log.Printf("%s pming %s; %s", m.from.id, m.payload, to.id)
+				log.Printf("%s pming %s; %s", m.from.id, to.id, m.payload)
 				to.inc <- "### " + m.from.uname + ": " + m.payload + "\n"
-				m.from.inc <- "*** message sent\n"
+				m.from.inc <- "### message sent\n"
 			} else {
 				m.from.inc <- "*** user " + m.to + " is not registered\n"
 			}
