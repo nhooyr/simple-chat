@@ -12,11 +12,10 @@ func main() {
 	addr := flag.String("addr", ":4000", "listen address")
 	flag.Parse()
 	s := &server{
-		addUName:   make(chan *client),
-		remUName:   make(chan *client),
-		addToCh:    make(chan *client),
-		remFromCh:  make(chan *client),
-		ok:         make(chan bool),
-		messageCli: make(chan message)}
+		addUname:  make(chan *client),
+		remUname:  make(chan *client),
+		addToChan: make(chan *client),
+		rmChan:    make(chan string),
+		privateMsg: make(chan message)}
 	log.Fatal(s.listenAndServe(*addr))
 }

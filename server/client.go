@@ -11,132 +11,133 @@ import (
 )
 
 type client struct {
-	uName    string
-	newUName string
-	chName   string
+	uname    string
+	newUname string
+	chanName string
 	id       string
 	c        *net.Conn
 	r        *bufio.Reader
 	ch       *channel
-	s        *server
+	serv     *server
 	inc      chan string
 	ok       chan bool
 }
 
-func (cli *client) writeLoop() {
+func (cl *client) writeLoop() {
 	for {
-		m := <-cli.inc
-		_, err := (*cli.c).Write([]byte(time.Now().Format("15:04 ") + m))
+		m := <-cl.inc
+		_, err := (*cl.c).Write([]byte(time.Now().Format("15:04 ") + m))
 		if err != nil {
 			return
 		}
 	}
 }
 
-func (cli *client) shutdown() {
-	log.Printf("%s shutting down", cli.id)
-	cli.inc <- "*** shutting down\n"
-	if cli.ch != nil {
-		cli.s.remFromCh <- cli
+func (cl *client) shutdown() {
+	log.Printf("%s shutting down", cl.id)
+	cl.inc <- "*** shutting down\n"
+	if cl.ch != nil {
+		cl.ch.rmClient <- cl
 	}
-	if cli.uName != "" {
-		cli.s.remUName <- cli
-		<- cli.ok
+	if cl.uname != "" {
+		cl.serv.remUname <- cl
+		<-cl.ok
 	}
 
-	(*cli.c).Close()
+	(*cl.c).Close()
 }
 
-func (cli *client) getSpaceTrimmed(what string) (reply string, err error) {
+func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
 	for {
-		cli.inc <- "=== " + what + ": "
-		reply, err = cli.r.ReadString('\n')
+		cl.inc <- "=== " + what + ": "
+		reply, err = cl.r.ReadString('\n')
 		if err != nil {
-			cli.shutdown()
+			cl.shutdown()
 			return
 		}
 		if reply = escapeUnsafe(strings.TrimSpace(reply)); reply != "" {
-			return reply, err
+			return
 		}
 	}
 }
 
 var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
 
-func escapeUnsafe(in string) (out string) {
+func escapeUnsafe(in string) (string) {
 	return string(controlChar.ReplaceAllFunc([]byte(in),
-		func(unescaped []byte) (escaped []byte) {
-			escaped = []byte(strconv.Quote(string(unescaped)))
-			return escaped[1 : len(escaped)-1]
+		func(in []byte) (out []byte) {
+			out = []byte(strconv.Quote(string(in)))
+			return out[1 : len(out)-1]
 		}))
 }
 
-func (cli *client) registerNewUName() (ok bool) {
-	log.Printf("%s registering username %s", cli.id, cli.newUName)
-	cli.inc <- "*** registering username " + cli.newUName + "\n"
-	cli.s.addUName <- cli
-	if ok = <-cli.ok; ok {
-		cli.id = cli.uName + ":" + (*cli.c).RemoteAddr().String()
+func (cl *client) registerNewUname() (ok bool) {
+	log.Printf("%s registering uname %s", cl.id, cl.newUname)
+	cl.inc <- "*** registering uname " + cl.newUname + "\n"
+	cl.serv.addUname <- cl
+	if ok = <-cl.ok; ok {
+		cl.id = cl.uname + ":" + (*cl.c).RemoteAddr().String()
 		return
 	}
-	cli.inc <- "*** username " + cli.newUName + " is not available\n"
-	cli.newUName = ""
+	cl.inc <- "*** uname " + cl.newUname + " is not available\n"
+	cl.newUname = ""
 	return
 }
 
-func (cli *client) manageClient() {
+func (cl *client) manage() {
 	var err error
 	for {
-		cli.newUName, err = cli.getSpaceTrimmed("username")
+		cl.newUname, err = cl.getSpaceTrimmed("username")
 		if err != nil {
 			return
 		}
-		if cli.registerNewUName() {
+		if cl.registerNewUname() {
 			break
 		}
 	}
-	cli.chName, err = cli.getSpaceTrimmed("channel")
+	cl.chanName, err = cl.getSpaceTrimmed("channel")
 	if err != nil {
 		return
 	}
-	cli.inc <- "??? /help for usage info\n"
+	cl.inc <- "??? /help for usage info\n"
 	for {
-		cli.s.addToCh <- cli
-		<-cli.ok
-	readLoop:
+		cl.serv.addToChan <- cl
+		<-cl.ok
+		readLoop:
 		for {
-			m, err := cli.r.ReadString('\n')
+			m, err := cl.r.ReadString('\n')
 			if err != nil {
-				cli.shutdown()
+				cl.shutdown()
 				return
 			}
 			m = escapeUnsafe(strings.TrimSpace(m))
 			switch {
 			case strings.HasPrefix(m, "/chch "):
-				cli.chName = m[6:]
-				log.Printf("%s changing to channel %s from %s", cli.id, cli.chName, cli.ch.name)
-				cli.s.remFromCh <- cli
+				cl.chanName = m[6:]
+				log.Printf("%s changing to channel %s from %s", cl.id, cl.chanName, cl.ch.name)
+				cl.inc <- "changing to channel " + cl.chanName
+				cl.ch.rmClient <- cl
 				break readLoop
 			case strings.HasPrefix(m, "/chun "):
-				cli.newUName = m[6:]
-				cli.registerNewUName()
+				cl.newUname = m[6:]
+				cl.registerNewUname()
 				continue
 			case strings.HasPrefix(m, "/msg ") && strings.Count(m, " ") >= 2:
 				m = m[5:]
 				i := strings.Index(m, " ")
-				cli.s.messageCli <- message{sender: cli, recipient: m[:i],
+				cl.serv.msgUser <- message{from: cl, to: m[:i],
 					payload: strings.TrimSpace(m[i+1:])}
 				continue
 			case m == "/close":
-				cli.shutdown()
+				cl.shutdown()
 				return
 			case m == "/help":
 				tS := time.Now().Format("15:04 ")
-				cli.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <username> 	     - change username\n" + tS + "??? /msg  <username> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
+				cl.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <uname> 	     - change uname\n" + tS + "??? /msg  <uname> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
 				continue
 			}
-			log.Printf("%s broadcasting %s in channel %s", cli.id, m, cli.chName)
-			cli.ch.broadcast <- "--> " + cli.uName + ": " + m
+			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.chanName)
+			cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 		}
 	}
 }

@@ -1,7 +1,7 @@
 package main
 
 type message struct {
-	sender    *client
-	payload   string
-	recipient string
+	from    *client
+	payload string
+	to      string
 }
