@@ -20,10 +20,3 @@ func main() {
 		messageCli: make(chan message)}
 	log.Fatal(s.listenAndServe(*addr))
 }
-
-
-type message struct {
-	sender    *client
-	payload   string
-	recipient string
-}
