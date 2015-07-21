@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type client struct {
@@ -26,7 +25,7 @@ type client struct {
 func (cl *client) writeLoop() {
 	for {
 		m := <-cl.inc
-		_, err := (*cl.c).Write([]byte(time.Now().Format("15:04 ") + m))
+		_, err := (*cl.c).Write([]byte(m))
 		if err != nil {
 			return
 		}
@@ -109,6 +108,9 @@ func (cl *client) manage() {
 				return
 			}
 			m = escapeUnsafe(strings.TrimSpace(m))
+			if m == "" {
+				continue
+			}
 			switch {
 			case strings.HasPrefix(m, "/chch "):
 				cl.newChanName = m[6:]
@@ -134,8 +136,7 @@ func (cl *client) manage() {
 				cl.shutdown()
 				return
 			case m == "/help":
-				tS := time.Now().Format("15:04 ")
-				cl.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <uname> 	     - change uname\n" + tS + "??? /msg  <uname> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
+				cl.inc <- "??? /help 		     - usage info\n" + "??? /chch <channelname> 	     - join new channel\n" + "??? /chun <uname> 	     - change uname\n" + "??? /msg  <uname> <message>    - private message\n" + "??? /close	    	     - close connection\n"
 				continue
 			}
 			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)

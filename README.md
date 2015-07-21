@@ -1,2 +1,2 @@
 # gochat
-cool little chat server I made for telnet/nc, client included doe :)
+cool little chat server I made for telnet/nc, client included doe for op timestamps :)
