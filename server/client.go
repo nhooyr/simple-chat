@@ -11,16 +11,16 @@ import (
 )
 
 type client struct {
-	uname    string
-	newUname string
-	chanName string
-	id       string
-	c        *net.Conn
-	r        *bufio.Reader
-	ch       *channel
-	serv     *server
-	inc      chan string
-	ok       chan bool
+	uname       string
+	newUname    string
+	newChanName string
+	id          string
+	c           *net.Conn
+	r           *bufio.Reader
+	ch          *channel
+	serv        *server
+	inc         chan string
+	ok          chan bool
 }
 
 func (cl *client) writeLoop() {
@@ -41,9 +41,7 @@ func (cl *client) shutdown() {
 	}
 	if cl.uname != "" {
 		cl.serv.remUname <- cl
-		<-cl.ok
 	}
-
 	(*cl.c).Close()
 }
 
@@ -63,7 +61,7 @@ func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
 
 var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
 
-func escapeUnsafe(in string) (string) {
+func escapeUnsafe(in string) string {
 	return string(controlChar.ReplaceAllFunc([]byte(in),
 		func(in []byte) (out []byte) {
 			out = []byte(strconv.Quote(string(in)))
@@ -95,7 +93,7 @@ func (cl *client) manage() {
 			break
 		}
 	}
-	cl.chanName, err = cl.getSpaceTrimmed("channel")
+	cl.newChanName, err = cl.getSpaceTrimmed("channel")
 	if err != nil {
 		return
 	}
@@ -103,7 +101,7 @@ func (cl *client) manage() {
 	for {
 		cl.serv.addToChan <- cl
 		<-cl.ok
-		readLoop:
+	readLoop:
 		for {
 			m, err := cl.r.ReadString('\n')
 			if err != nil {
@@ -113,9 +111,9 @@ func (cl *client) manage() {
 			m = escapeUnsafe(strings.TrimSpace(m))
 			switch {
 			case strings.HasPrefix(m, "/chch "):
-				cl.chanName = m[6:]
-				log.Printf("%s changing to channel %s from %s", cl.id, cl.chanName, cl.ch.name)
-				cl.inc <- "changing to channel " + cl.chanName
+				cl.newChanName = m[6:]
+				log.Printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
+				cl.inc <- "changing to channel " + cl.newChanName
 				cl.ch.rmClient <- cl
 				break readLoop
 			case strings.HasPrefix(m, "/chun "):
@@ -136,7 +134,7 @@ func (cl *client) manage() {
 				cl.inc <- "??? /help 		     - usage info\n" + tS + "??? /chch <channelname> 	     - join new channel\n" + tS + "??? /chun <uname> 	     - change uname\n" + tS + "??? /msg  <uname> <message> - private message\n" + tS + "??? /close	    	     - close connection\n"
 				continue
 			}
-			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.chanName)
+			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
 			cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 		}
 	}

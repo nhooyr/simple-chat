@@ -36,12 +36,12 @@ func (s *server) listenAndServe(addr string) error {
 func (s *server) initializeClient(c *net.Conn) {
 	log.Printf("%s initializing", (*c).RemoteAddr().String())
 	cl := &client{
-		id:  (*c).RemoteAddr().String(),
-		c:   c,
-		bufR:   bufio.NewReader(*c),
-		server:   s,
-		inc: make(chan string, 3),
-		ok:  make(chan bool)}
+		id:   (*c).RemoteAddr().String(),
+		c:    c,
+		r:    bufio.NewReader(*c),
+		serv: s,
+		inc:  make(chan string, 2),
+		ok:   make(chan bool)}
 	go cl.writeLoop()
 	cl.inc <- "*** welcome to the chat server\n"
 	go cl.manage()
@@ -69,24 +69,22 @@ func (s *server) manage() {
 			}
 		case cl := <-s.remUname:
 			log.Printf("%s deregistering uname", cl.id)
-			(*cli.c).Write([]byte(time.Now().Format("15:04 ") + "*** deregistering uname\n"))
-			cl.ok <- true
 			delete(unameList, cl.uname)
 		case cl := <-s.addToChan:
-			if channel, exists := chanList[cl.chanName]; exists {
+			if channel, exists := chanList[cl.newChanName]; exists {
 				channel.addClient <- cl
 				break
 			}
-			log.Printf("%s creating channel %s", cl.id, cl.chanName)
-			chanList[cl.chanName] = &channel{
-				n:        cl.chanName,
-				s:      cl.serv,
-				addClient:      make(chan *client),
-				rmClient:      make(chan *client),
-				newUname: make(chan *client),
-				broadcast:   make(chan string)}
-			go chanList[cl.chanName].manage()
-			chanList[cl.chanName].addClient <- cl
+			log.Printf("%s creating channel %s", cl.id, cl.newChanName)
+			chanList[cl.newChanName] = &channel{
+				name:      cl.newChanName,
+				serv:      cl.serv,
+				addClient: make(chan *client),
+				rmClient:  make(chan *client),
+				newUname:  make(chan *client),
+				broadcast: make(chan string)}
+			go chanList[cl.newChanName].manage()
+			chanList[cl.newChanName].addClient <- cl
 		case name := <-s.rmChan:
 			delete(chanList, name)
 		case m := <-s.msgUser:

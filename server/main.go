@@ -16,6 +16,6 @@ func main() {
 		remUname:  make(chan *client),
 		addToChan: make(chan *client),
 		rmChan:    make(chan string),
-		privateMsg: make(chan message)}
+		msgUser:   make(chan message)}
 	log.Fatal(s.listenAndServe(*addr))
 }
