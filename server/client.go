@@ -141,7 +141,7 @@ func (cl *client) registerNewUname() (ok bool) {
 	cl.inc <- "*** registering uname " + cl.newUname + "\n"
 	cl.serv.addUname <- cl
 	if ok = <-cl.ok; ok {
-		cl.id = cl.uname + ":" + (cl.c).RemoteAddr().String()
+		cl.id = cl.uname + ":" + (*cl.c).RemoteAddr().String()
 		return
 	}
 	cl.inc <- "*** uname " + cl.newUname + " is not available\n"
