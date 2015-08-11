@@ -58,11 +58,10 @@ func (s *server) manage() {
 			}
 			unameList[cl.newUname] = cl
 			log.Println(cl.uname)
-			switch cl.uname {
-			case "":
+			if cl.uname == "" {
 				cl.uname = cl.newUname
 				cl.ok <- true
-			default:
+			} else {
 				log.Printf("%s deregistering uname", cl.id)
 				cl.inc <- "*** deregistering uname " + cl.uname + "\n"
 				delete(unameList, cl.uname)
@@ -89,12 +88,11 @@ func (s *server) manage() {
 		case name := <-s.rmChan:
 			delete(chanList, name)
 		case m := <-s.msgUser:
-			switch to, exists := unameList[m.to]; exists {
-			case true:
+			if to, exists := unameList[m.to]; exists {
 				log.Printf("%s pming %s; %s", m.from.id, to.id, m.payload)
 				to.inc <- "### " + m.from.uname + ": " + m.payload + "\n"
 				m.from.inc <- "### message sent\n"
-			default:
+			} else {
 				m.from.inc <- "*** user " + m.to + " is not registered\n"
 			}
 		}

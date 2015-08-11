@@ -64,13 +64,12 @@ func (cl *client) manage() {
 				cl.registerNewUname()
 				continue
 			case strings.HasPrefix(m, "/msg "):
-				switch {
-				case strings.Count(m, " ") >= 2:
+				if strings.Count(m, " ") >= 2 {
 					m = m[5:]
 					i := strings.Index(m, " ")
 					cl.serv.msgUser <- message{from: cl, to: m[:i],
 						payload: strings.TrimSpace(m[i+1:])}
-				default:
+				} else {
 					cl.inc <- "*** error: no message\n"
 				}
 				continue

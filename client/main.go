@@ -81,5 +81,3 @@ func main() {
 		}
 	}
 }
-
-//TODO new stdin and lookover if vs switch and server code
