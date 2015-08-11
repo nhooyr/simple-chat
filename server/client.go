@@ -64,12 +64,13 @@ func (cl *client) manage() {
 				cl.registerNewUname()
 				continue
 			case strings.HasPrefix(m, "/msg "):
-				if strings.Count(m, " ") >= 2 {
+				switch {
+				case strings.Count(m, " ") >= 2:
 					m = m[5:]
 					i := strings.Index(m, " ")
 					cl.serv.msgUser <- message{from: cl, to: m[:i],
 						payload: strings.TrimSpace(m[i+1:])}
-				} else {
+				default:
 					cl.inc <- "*** error: no message\n"
 				}
 				continue
@@ -77,7 +78,11 @@ func (cl *client) manage() {
 				cl.shutdown()
 				return
 			case m == "/help":
-				cl.inc <- "??? /help 		     - usage info\n" + "??? /chch <channelname> 	     - join new channel\n" + "??? /chun <uname> 	     - change uname\n" + "??? /msg  <uname> <message>    - private message\n" + "??? /close	    	     - close connection\n"
+				cl.inc <- "??? /help                      - usage info\n"
+				cl.inc <- "??? /chch <channelname>        - join new channel\n"
+				cl.inc <- "??? /chun <uname>              - change uname\n"
+				cl.inc <- "??? /msg  <uname> <message>    - private message\n"
+				cl.inc <- "??? /close                     - close connection\n"
 				continue
 			}
 			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
@@ -137,7 +142,7 @@ func (cl *client) registerNewUname() (ok bool) {
 	cl.inc <- "*** registering uname " + cl.newUname + "\n"
 	cl.serv.addUname <- cl
 	if ok = <-cl.ok; ok {
-		cl.id = cl.uname + ":" + (*cl.c).RemoteAddr().String()
+		cl.id = cl.uname + ":" + (cl.c).RemoteAddr().String()
 		return
 	}
 	cl.inc <- "*** uname " + cl.newUname + " is not available\n"

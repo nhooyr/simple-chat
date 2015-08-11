@@ -39,7 +39,7 @@ func (s *server) initializeClient(c *net.Conn) {
 		c:    c,
 		r:    bufio.NewReader(*c),
 		serv: s,
-		inc:  make(chan string, 2),
+		inc:  make(chan string, 255),
 		ok:   make(chan bool)}
 	go cl.writeLoop()
 	cl.inc <- "*** welcome to the chat server\n"
@@ -57,10 +57,12 @@ func (s *server) manage() {
 				break
 			}
 			unameList[cl.newUname] = cl
-			if cl.uname == "" {
+			log.Println(cl.uname)
+			switch cl.uname {
+			case "":
 				cl.uname = cl.newUname
 				cl.ok <- true
-			} else {
+			default:
 				log.Printf("%s deregistering uname", cl.id)
 				cl.inc <- "*** deregistering uname " + cl.uname + "\n"
 				delete(unameList, cl.uname)
@@ -87,11 +89,12 @@ func (s *server) manage() {
 		case name := <-s.rmChan:
 			delete(chanList, name)
 		case m := <-s.msgUser:
-			if to, exists := unameList[m.to]; exists {
+			switch to, exists := unameList[m.to]; exists {
+			case true:
 				log.Printf("%s pming %s; %s", m.from.id, to.id, m.payload)
 				to.inc <- "### " + m.from.uname + ": " + m.payload + "\n"
 				m.from.inc <- "### message sent\n"
-			} else {
+			default:
 				m.from.inc <- "*** user " + m.to + " is not registered\n"
 			}
 		}

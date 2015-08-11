@@ -3,14 +3,17 @@ package main
 import (
 	"flag"
 	"log"
+	"strings"
 )
-
-//TODO documentation
 
 func main() {
 	log.SetPrefix("chat server: ")
-	addr := flag.String("addr", ":4000", "listen address")
+	addr := flag.String("addr", ":5000", "listen address")
 	flag.Parse()
+	if !strings.Contains(*addr, ":") {
+		temp := ":" + *addr
+		addr = &temp
+	}
 	s := &server{
 		addUname:  make(chan *client),
 		remUname:  make(chan *client),

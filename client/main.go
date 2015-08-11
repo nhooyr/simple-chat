@@ -7,43 +7,79 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
+	"sync"
 	"time"
 )
 
 func main() {
+	var userEnteredMutex sync.Mutex
+	var userEntered bool
 	log.SetPrefix("client: ")
-	addr := flag.String("addr", "localhost:4000", "connect addr")
+	tmp := flag.String("addr", ":50000", "listen address")
 	flag.Parse()
-	c, err := net.Dial("tcp", *addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	go func() {
-		osr := bufio.NewReader(os.Stdin)
-		for {
-			m, _ := osr.ReadString('\n')
-			fmt.Print(time.Now().Format("15:04 "))
-			_, err = fmt.Fprintf(c, "%s", m)
+	osr := bufio.NewReader(os.Stdin)
+	addr := *tmp
+	for ; ; addr = "" {
+		for addr == "" {
+			var err error
+			fmt.Print("enter address (host:port): ")
+			addr, err = osr.ReadString('\n')
 			if err != nil {
-				log.Fatal(err)
+				log.Print(err)
+				continue
 			}
+			addr = addr[:len(addr)-1]
 		}
-	}()
-	cr := bufio.NewReader(c)
-	r, _, err := cr.ReadRune()
-	if err != nil {
-		log.Fatal('\n', err)
-	}
-	fmt.Print(time.Now().Format("15:04 ") + string(r))
-	for {
-		r, _, err = cr.ReadRune()
+		_, err := strconv.ParseUint(addr, 0, 16)
+		if err == nil {
+			addr = ":" + addr
+		}
+		c, err := net.Dial("tcp", addr)
 		if err != nil {
-			log.Fatal('\n', err)
-		}
-		if r == '\n' {
-			fmt.Print("\n" + time.Now().Format("15:04 "))
+			log.Print(err)
 			continue
 		}
-		fmt.Print(string(r))
+		go func() {
+			for {
+				m, err := osr.ReadString('\n')
+				if err != nil {
+					log.Print('\n', err)
+					return
+				}
+				userEnteredMutex.Lock()
+				userEntered = true
+				userEnteredMutex.Unlock()
+				_, err = fmt.Fprintf(c, "%s", m)
+				if err != nil {
+					log.Print('\n', err)
+					return
+				}
+			}
+		}()
+		cr := bufio.NewReader(c)
+		newLine := true
+		for {
+			r, _, err := cr.ReadRune()
+			if err != nil {
+				log.Print('\n', err)
+				break
+			}
+			userEnteredMutex.Lock()
+			if newLine == true || userEntered == true {
+				fmt.Print(time.Now().Format("15:04 "))
+				newLine = false
+				userEntered = false
+			}
+			userEnteredMutex.Unlock()
+			if r == '\n' {
+				newLine = true
+			} else {
+				newLine = false
+			}
+			fmt.Print(string(r))
+		}
 	}
 }
+
+//TODO new stdin and lookover if vs switch and server code
