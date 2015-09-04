@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"log"
 	"net"
+	"time"
 )
 
 type server struct {
@@ -14,8 +15,32 @@ type server struct {
 	msgUser   chan message
 }
 
+// tcpKeepAliveListener wraps a TCPListener to
+// activate TCP keep alive on every accepted connection
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
+
+// Accept a TCP Conn and enable TCP keep alive
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
+		return
+	}
+	err = tc.SetKeepAlive(true)
+	if err != nil {
+		return
+	}
+	err = tc.SetKeepAlivePeriod(time.Second * 10)
+	if err != nil {
+		return
+	}
+	return tc, nil
+}
+
 func (s *server) listenAndServe(addr string) error {
-	ln, err := net.Listen("tcp", addr)
+	l, err := net.Listen("tcp", addr)
+	ln := tcpKeepAliveListener{l.(*net.TCPListener)}
 	if err != nil {
 		return err
 	}
@@ -57,7 +82,6 @@ func (s *server) manage() {
 				break
 			}
 			unameList[cl.newUname] = cl
-			log.Println(cl.uname)
 			if cl.uname == "" {
 				cl.uname = cl.newUname
 				cl.ok <- true

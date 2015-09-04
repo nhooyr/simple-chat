@@ -7,16 +7,14 @@ import (
 	"log"
 	"net"
 	"os"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 func main() {
-	var userEnteredMutex sync.Mutex
-	var userEntered bool
 	log.SetPrefix("client: ")
-	tmp := flag.String("addr", ":50000", "listen address")
+	tmp := flag.String("addr", ":5000", "listen address")
 	flag.Parse()
 	osr := bufio.NewReader(os.Stdin)
 	addr := *tmp
@@ -31,8 +29,7 @@ func main() {
 			}
 			addr = addr[:len(addr)-1]
 		}
-		_, err := strconv.ParseUint(addr, 0, 16)
-		if err == nil {
+		if !strings.Contains(addr, ":") {
 			addr = ":" + addr
 		}
 		c, err := net.Dial("tcp", addr)
@@ -40,7 +37,12 @@ func main() {
 			log.Print(err)
 			continue
 		}
+		var userEnteredMutex sync.Mutex
+		var userEntered bool
+		var wg sync.WaitGroup
+		wg.Add(2)
 		go func() {
+			defer wg.Done()
 			for {
 				m, err := osr.ReadString('\n')
 				if err != nil {
@@ -57,27 +59,32 @@ func main() {
 				}
 			}
 		}()
-		cr := bufio.NewReader(c)
-		newLine := true
-		for {
-			r, _, err := cr.ReadRune()
-			if err != nil {
-				log.Print('\n', err)
-				break
+		go func() {
+			defer c.Close()
+			defer wg.Done()
+			cr := bufio.NewReader(c)
+			newLine := true
+			for {
+				r, _, err := cr.ReadRune()
+				if err != nil {
+					log.Print('\n', err)
+					return
+				}
+				userEnteredMutex.Lock()
+				if newLine == true || userEntered == true {
+					fmt.Print(time.Now().Format("15:04 "))
+					newLine = false
+					userEntered = false
+				}
+				userEnteredMutex.Unlock()
+				if r == '\n' {
+					newLine = true
+				} else {
+					newLine = false
+				}
+				fmt.Print(string(r))
 			}
-			userEnteredMutex.Lock()
-			if newLine == true || userEntered == true {
-				fmt.Print(time.Now().Format("15:04 "))
-				newLine = false
-				userEntered = false
-			}
-			userEnteredMutex.Unlock()
-			if r == '\n' {
-				newLine = true
-			} else {
-				newLine = false
-			}
-			fmt.Print(string(r))
-		}
+		}()
+		wg.Wait()
 	}
 }
