@@ -1,18 +1,21 @@
 package main
 
 import (
-	"flag"
 	"log"
+	"os"
 	"strings"
 )
 
 func main() {
-	log.SetPrefix("chat server: ")
-	addr := flag.String("addr", ":5000", "listen address")
-	flag.Parse()
-	if !strings.Contains(*addr, ":") {
-		temp := ":" + *addr
-		addr = &temp
+	log.SetPrefix("gCServer: ")
+	log.SetOutput(os.Stdout)
+	if len(os.Args) < 2 {
+		log.Println("gCServer host:port")
+		return
+	}
+	addr := os.Args[1]
+	if !strings.Contains(addr, ":") {
+		addr = ":" + addr
 	}
 	s := &server{
 		addUname:  make(chan *client),
@@ -20,5 +23,5 @@ func main() {
 		addToChan: make(chan *client),
 		rmChan:    make(chan string),
 		msgUser:   make(chan message)}
-	log.Fatal(s.listenAndServe(*addr))
+	log.Fatal(s.listenAndServe(addr))
 }
