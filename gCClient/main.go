@@ -21,7 +21,7 @@ func main() {
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
-	d := net.Dialer{KeepAlive: time.Second*10}
+	d := net.Dialer{KeepAlive: time.Second * 10}
 	c, err := d.Dial("tcp", addr)
 	if err != nil {
 		log.Print(err)
@@ -31,21 +31,19 @@ func main() {
 	var userEnteredMutex sync.Mutex
 	var userEntered bool
 	go func() {
-		osr := bufio.NewReader(os.Stdin)
-		for {
-			m, err := osr.ReadString('\n')
-			if err != nil {
-				log.Print('\n', err)
-				return
-			}
+		s := bufio.NewScanner(os.Stdin)
+		for s.Scan() {
 			userEnteredMutex.Lock()
 			userEntered = true
 			userEnteredMutex.Unlock()
-			_, err = fmt.Fprintf(c, "%s", m)
+			c.Write(append(s.Bytes(), '\n'))
 			if err != nil {
 				log.Print('\n', err)
 				return
 			}
+		}
+		if err := s.Err(); err != nil {
+			log.Print('\n', err)
 		}
 	}()
 	cr := bufio.NewReader(c)
