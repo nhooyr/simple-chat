@@ -15,7 +15,7 @@ Run and listen on addr:port
 
 Can be shortened to just port
 
-### client
+### cclient
 First of all the client is unnecessary, you can use telnet/netcat. It's only advantage is that it comes with timestamps and its very straightforward.
 
 	go get github.com/aubble/goChat/cclient
