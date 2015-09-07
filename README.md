@@ -5,24 +5,24 @@ cool little chat server I made for telnet/nc, client included doe for op timesta
 
 The commands will install into $GOPATH/bin, just make sure its in your $PATH
 
-### Server
+### cserver
 
-	go get github.com/aubble/goChat/gCServer
+	go get github.com/aubble/goChat/cserver
 
 Run and listen on addr:port
 
-	gCServer addr:port
+	cserver addr:port
 
 Can be shortened to just port
 
-### Client
+### client
 First of all the client is unnecessary, you can use telnet/netcat. It's only advantage is that it comes with timestamps and its very straightforward.
 
-	go get github.com/aubble/goChat/gCClient
+	go get github.com/aubble/goChat/cclient
 
 Run and connect to host:port
 
-	gCClient host:port
+	cclient host:port
 
 Can be shortened to just port
 
