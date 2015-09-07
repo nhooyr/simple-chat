@@ -1,7 +1,5 @@
 package main
 
-import "log"
-
 type channel struct {
 	name      string
 	serv      *server
@@ -25,23 +23,23 @@ func (ch *channel) manage() {
 	for {
 		select {
 		case cl := <-ch.addClient:
-			log.Printf("%s joining channel %s", cl.id, ch.name)
+			logger.printf("%s joining channel %s", cl.id, ch.name)
 			cl.inc <- "*** joining channel " + ch.name + "\n"
 			cl.ch = ch
 			cliList[cl.uname] = cl
 			cl.ok <- true
 			broadcast("+++ " + cl.uname + " has joined the channel")
 		case cl := <-ch.rmClient:
-			log.Printf("%s leaving channel %s", cl.id, ch.name)
+			logger.printf("%s leaving channel %s", cl.id, ch.name)
 			cl.inc <- "*** leaving channel " + ch.name + "\n"
 			broadcast("--- " + cl.uname + " has left the channel")
 			delete(cliList, cl.uname)
 			if len(cliList) == 0 {
-				log.Printf("%s shutting down channel %s", cl.id, ch.name)
+				logger.printf("%s shutting down channel %s", cl.id, ch.name)
 				ch.serv.rmChan <- ch.name
 			}
 		case cl := <-ch.newUname:
-			log.Printf("%s changing uname to %s", cl.id, cl.newUname)
+			logger.printf("%s changing uname to %s", cl.id, cl.newUname)
 			cl.inc <- "*** changing uname to " + cl.newUname + "\n"
 			delete(cliList, cl.uname)
 			cliList[cl.newUname] = cl

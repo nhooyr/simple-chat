@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"log"
 	"net"
 	"regexp"
 	"strconv"
@@ -55,7 +54,7 @@ func (cl *client) manage() {
 			switch {
 			case strings.HasPrefix(m, "/chch "):
 				cl.newChanName = m[6:]
-				log.Printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
+				logger.printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
 				cl.inc <- "changing to channel " + cl.newChanName + "\n"
 				cl.ch.rmClient <- cl
 				break readLoop
@@ -84,7 +83,7 @@ func (cl *client) manage() {
 				cl.inc <- "??? /close                     - close connection\n"
 				continue
 			}
-			log.Printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
+			logger.printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
 			cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 		}
 	}
@@ -101,7 +100,7 @@ func (cl *client) writeLoop() {
 }
 
 func (cl *client) shutdown() {
-	log.Printf("%s shutting down", cl.id)
+	logger.printf("%s shutting down", cl.id)
 	(*cl.c).Write([]byte("*** shutting down\n"))
 	(*cl.c).Close()
 	if cl.ch != nil {
@@ -137,7 +136,7 @@ func escapeUnsafe(in string) string {
 }
 
 func (cl *client) registerNewUname() (ok bool) {
-	log.Printf("%s registering uname %s", cl.id, cl.newUname)
+	logger.printf("%s registering uname %s", cl.id, cl.newUname)
 	cl.inc <- "*** registering uname " + cl.newUname + "\n"
 	cl.serv.addUname <- cl
 	if ok = <-cl.ok; ok {

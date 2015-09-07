@@ -1,30 +1,32 @@
 # gochat
-cool little chat server I made for telnet/nc, client included doe for op timestamps :)
+cool little chat server I made for telnet/nc, client included for op timestamps :)
 
 ## Install
 
-The commands will install into $GOPATH/bin, just make sure its in your $PATH
+The commands will install into $GOPATH/bin, just make sure you have it in your $PATH.
+
+Otherwise navigate to $GOPATH/github.com/aubble/goChat and build from source.
 
 ### cserver
 
 	go get github.com/aubble/goChat/cserver
 
-Run and listen on addr:port, logging is done on stderr
+Run, log to stderr with timestamps and listen on ip:port (can be shortened to just port)
 
-	cserver addr:port
+	cserver -e -t -l ip:port
 
-Can be shortened to just port
+See all options with
+
+	cserver -h
 
 ### cclient
 First of all the client is unnecessary, you can use telnet/netcat. It's only advantage is that it comes with timestamps and its very straightforward.
 
 	go get github.com/aubble/goChat/cclient
 
-Run and connect to host:port
+Run and connect to host:port (can be just port)
 
 	cclient host:port
-
-Can be shortened to just port
 
 #### Help
 
