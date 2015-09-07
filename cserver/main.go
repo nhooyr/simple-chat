@@ -8,7 +8,6 @@ import (
 
 func main() {
 	log.SetPrefix("gCServer: ")
-	log.SetOutput(os.Stdout)
 	if len(os.Args) < 2 {
 		log.Println("gCServer host:port")
 		return

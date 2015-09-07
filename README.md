@@ -9,7 +9,7 @@ The commands will install into $GOPATH/bin, just make sure its in your $PATH
 
 	go get github.com/aubble/goChat/cserver
 
-Run and listen on addr:port
+Run and listen on addr:port, logging is done on stderr
 
 	cserver addr:port
 
@@ -26,5 +26,6 @@ Run and connect to host:port
 
 Can be shortened to just port
 
-###Help
+#### Help
+
 Once connected via a client, type /help to see help on the different commands you can use on the server.
