@@ -31,13 +31,13 @@ func main() {
 		logger.logPath = logPath
 		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			log.Fatal(err)
+			logger.fatal(err)
 		}
 		logger.Logger = log.New(logFile, "cserver: ", 3)
 		logger.logFile = &logFile
 	}
 	if addr == "" {
-		log.Fatal("no address given, -h for more info")
+		logger.fatal("no address given, -h for more info")
 	}
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
@@ -47,6 +47,7 @@ func main() {
 	go func() {
 		sig := <-sigs
 		logger.println("got signal", sig)
+		logger.close()
 		logger.fatalln("exiting")
 	}()
 	s := &server{

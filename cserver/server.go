@@ -59,12 +59,12 @@ func (s *server) initializeClient(c *net.Conn) {
 	cl := &client{
 		id:   (*c).RemoteAddr().String(),
 		c:    c,
-		r:    bufio.NewReader(*c),
+		scn:  bufio.NewScanner(*c),
 		serv: s,
-		inc:  make(chan string, 255),
+		out:  make(chan string, 255),
 		ok:   make(chan bool)}
 	go cl.writeLoop()
-	cl.inc <- "*** welcome to the chat server\n"
+	cl.send("*** welcome to the chat server\n")
 	go cl.manage()
 }
 
@@ -84,7 +84,7 @@ func (s *server) manage() {
 				cl.ok <- true
 			} else {
 				logger.printf("%s deregistering uname", cl.id)
-				cl.inc <- "*** deregistering uname " + cl.uname + "\n"
+				cl.send("*** deregistering uname " + cl.uname + "\n")
 				delete(unameList, cl.uname)
 				cl.ch.newUname <- cl
 			}
@@ -111,10 +111,10 @@ func (s *server) manage() {
 		case m := <-s.msgUser:
 			if to, exists := unameList[m.to]; exists {
 				logger.printf("%s pming %s; %s", m.from.id, to.id, m.payload)
-				to.inc <- "### " + m.from.uname + ": " + m.payload + "\n"
-				m.from.inc <- "### message sent\n"
+				to.out <- "### " + m.from.uname + ": " + m.payload + "\n"
+				m.from.out <- "### message sent\n"
 			} else {
-				m.from.inc <- "*** user " + m.to + " is not registered\n"
+				m.from.out <- "*** user " + m.to + " is not registered\n"
 			}
 		}
 	}

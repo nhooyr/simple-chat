@@ -115,5 +115,7 @@ func (l fileLogger) panicln(v ...interface{}) {
 
 // closes the logFile associated with the logger
 func (l fileLogger) close() {
-	(*l.logFile).Close()
+	if l.logFile != nil {
+		(*l.logFile).Close()
+	}
 }
