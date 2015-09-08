@@ -26,12 +26,8 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	if err != nil {
 		return
 	}
-	if err = tc.SetKeepAlive(true); err != nil {
-		return
-	}
-	if err = tc.SetKeepAlivePeriod(time.Second * 10); err != nil {
-		return
-	}
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(time.Second * 10)
 	return tc, nil
 }
 
@@ -41,7 +37,6 @@ func (s *server) listenAndServe(addr string) error {
 		return err
 	}
 	ln := tcpKeepAliveListener{l.(*net.TCPListener)}
-	defer ln.Close()
 	go s.manage()
 	logger.printf("%s is listening", addr)
 	for {

@@ -9,10 +9,10 @@ import (
 	"syscall"
 )
 
-var logger fileLogger
+// global logger
+var logger *fileLogger
 
 func main() {
-	log.SetPrefix("cserver: ")
 	var (
 		stderr, errPrefix bool
 		addr, logPath     string
@@ -22,39 +22,41 @@ func main() {
 	flag.StringVar(&addr, "l", "", "listening address; ip:port")
 	flag.StringVar(&logPath, "p", "", "path to logfile")
 	flag.Parse()
-	logger.stderr = stderr
+	logger = &fileLogger{stderr: stderr}
 	if errPrefix == false {
 		log.SetFlags(0)
 		log.SetPrefix("")
+	} else {
+		log.SetPrefix("cserver: ")
 	}
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		//TODO logging concurrently safe
+		logger.println("got signal", <-sigs)
+		logger.fatal("exiting")
+	}()
 	if logPath != "" {
 		logger.logPath = logPath
 		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			logger.fatal(err)
+			log.Fatal(err)
 		}
 		logger.Logger = log.New(logFile, "cserver: ", 3)
-		logger.logFile = &logFile
+		logger.logFile = logFile
 	}
 	if addr == "" {
-		logger.fatal("no address given, -h for more info")
+		log.Fatal("no address given, -h for more info")
 	}
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		logger.println("got signal", sig)
-		logger.close()
-		logger.fatalln("exiting")
-	}()
 	s := &server{
 		addUname:  make(chan *client),
 		remUname:  make(chan *client),
 		addToChan: make(chan *client),
 		rmChan:    make(chan string),
 		msgUser:   make(chan message)}
+
 	logger.fatalln(s.listenAndServe(addr))
 }

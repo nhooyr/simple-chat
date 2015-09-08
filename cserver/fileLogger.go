@@ -15,34 +15,16 @@ type fileLogger struct {
 	logPath string
 
 	// pointer to pointer of the log file
-	logFile **os.File
+	logFile *os.File
 
 	// whether or not to log to stderr
 	stderr bool
 }
 
-// checks if the file exists
-// if it doesn't, create the file
-func (l fileLogger) checkIfExist() {
-	if _, err := os.Stat(l.logPath); err != nil {
-		if os.IsNotExist(err) {
-			logFile, err := os.OpenFile(l.logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-			if err != nil {
-				log.Fatalln(err)
-			}
-			l.SetOutput(logFile)
-			*l.logFile = logFile
-		} else {
-			log.Fatalln(err)
-		}
-	}
-}
-
 // first checks to make sure file exists
 // then prints arguments to logger as fmt.Print
-func (l fileLogger) print(v ...interface{}) {
+func (l *fileLogger) print(v ...interface{}) {
 	if l.Logger != nil {
-		l.checkIfExist()
 		l.Print(v...)
 	}
 	if l.stderr == true {
@@ -54,7 +36,6 @@ func (l fileLogger) print(v ...interface{}) {
 // then prints arguments to logger as fmt.Printf
 func (l fileLogger) printf(format string, v ...interface{}) {
 	if l.Logger != nil {
-		l.checkIfExist()
 		l.Printf(format, v...)
 	}
 	if l.stderr == true {
@@ -64,9 +45,8 @@ func (l fileLogger) printf(format string, v ...interface{}) {
 
 // first checks to make sure file exists
 // then prints arguments to logger as fmt.Println
-func (l fileLogger) println(v ...interface{}) {
+func (l *fileLogger) println(v ...interface{}) {
 	if l.Logger != nil {
-		l.checkIfExist()
 		l.Println(v...)
 	}
 	if l.stderr == true {
@@ -75,47 +55,47 @@ func (l fileLogger) println(v ...interface{}) {
 }
 
 // fatal is equal to l.print followed by a call to os.Exit(1)
-func (l fileLogger) fatal(v ...interface{}) {
+func (l *fileLogger) fatal(v ...interface{}) {
 	l.print(v...)
 	os.Exit(1)
 }
 
 // fatalf is equal to l.printf followed by a call to os.Exit(1)
-func (l fileLogger) fatalf(format string, v ...interface{}) {
+func (l *fileLogger) fatalf(format string, v ...interface{}) {
 	l.printf(format, v...)
 	os.Exit(1)
 }
 
 // fatalln is equal to l.Println followed by a call to os.Exit(1)
-func (l fileLogger) fatalln(v ...interface{}) {
+func (l *fileLogger) fatalln(v ...interface{}) {
 	l.println(v...)
 	os.Exit(1)
 }
 
 // panic is equal to l.print followed by a call to panic
-func (l fileLogger) panic(v ...interface{}) {
+func (l *fileLogger) panic(v ...interface{}) {
 	s := fmt.Sprint(v...)
 	l.print(s)
 	panic(s)
 }
 
 // panicf is equal to l.printf followed by a call to panic
-func (l fileLogger) panicf(format string, v ...interface{}) {
+func (l *fileLogger) panicf(format string, v ...interface{}) {
 	s := fmt.Sprintf(format, v...)
 	l.printf(s)
 	panic(s)
 }
 
 // panicln is equal to l.println followed by a call to panic
-func (l fileLogger) panicln(v ...interface{}) {
+func (l *fileLogger) panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	l.println(s)
 	panic(s)
 }
 
 // closes the logFile associated with the logger
-func (l fileLogger) close() {
+func (l *fileLogger) close() {
 	if l.logFile != nil {
-		(*l.logFile).Close()
+		l.logFile.Close()
 	}
 }

@@ -19,7 +19,7 @@ func main() {
 	}
 	addr := os.Args[1]
 	// fix addrs with just port
-	if !strings.Contains(addr, ":") {
+	if !strings.Contain(addr, ":") {
 		addr = ":" + addr
 	}
 	// create a dialer for tcp keep alive and dial the given host:port
@@ -35,27 +35,25 @@ func main() {
 	// userEntered maakes sure a timestamp is printed on
 	// the next character in the other loop when user presses enter.
 	go func() {
+		var err error
 		defer os.Exit(0)
 		s := bufio.NewScanner(os.Stdin)
 		for s.Scan() {
 			userEnteredMutex.Lock()
 			userEntered = true
 			userEnteredMutex.Unlock()
-			_, err := c.Write(append(s.Bytes(), '\n'))
-			if err != nil {
+			if _, err = c.Write(append(s.Bytes(), '\n')); err != nil {
 				log.Print(err)
 				return
 			}
 		}
-		if err := s.Err(); err != nil {
+		if err = s.Err(); err != nil {
 			log.Print(err)
 		}
 	}()
 	// continously read runes from c to output.
 	// add timestamps as necessary
-	cr := bufio.NewReader(c)
-	newLine := true
-	for {
+	for cr, newLine := bufio.NewReader(c), true; ; {
 		r, _, err := cr.ReadRune()
 		if err != nil {
 			log.Print(err)
