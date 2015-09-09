@@ -14,9 +14,6 @@ type fileLogger struct {
 	// path to logFile
 	logPath string
 
-	// pointer to pointer of the log file
-	logFile *os.File
-
 	// whether or not to log to stderr
 	stderr bool
 }
@@ -91,11 +88,4 @@ func (l *fileLogger) panicln(v ...interface{}) {
 	s := fmt.Sprintln(v...)
 	l.println(s)
 	panic(s)
-}
-
-// closes the logFile associated with the logger
-func (l *fileLogger) close() {
-	if l.logFile != nil {
-		l.logFile.Close()
-	}
 }

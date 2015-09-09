@@ -12,6 +12,7 @@ import (
 // global filelogger
 var logger *fileLogger
 
+// parse flags, setup logging and then launch server
 func main() {
 	var (
 		stderr, errPrefix bool
@@ -42,7 +43,6 @@ func main() {
 			log.Fatal(err)
 		}
 		logger.Logger = log.New(logFile, "cserver: ", 3)
-		logger.logFile = logFile
 	}
 	if addr == "" {
 		log.Fatal("no address given, -h for more info")
@@ -56,5 +56,5 @@ func main() {
 		addToChan: make(chan *client),
 		rmChan:    make(chan string),
 		msgUser:   make(chan message)}
-	logger.fatal(s.listenAndServe(addr))
+	log.Fatal(s.listenAndServe(addr))
 }
