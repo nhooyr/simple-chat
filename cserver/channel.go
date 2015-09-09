@@ -36,6 +36,7 @@ func (ch *channel) manage() {
 			cl.send("*** leaving channel " + ch.name + "\n")
 			broadcast("--- " + cl.uname + " has left the channel")
 			delete(cliList, cl.uname)
+			cl.ok <- true
 			if len(cliList) == 0 {
 				logger.printf("%s shutting down channel %s", cl.id, ch.name)
 				ch.serv.rmChan <- ch.name

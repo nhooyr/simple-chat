@@ -11,16 +11,16 @@ import (
 
 // represents a client and its various fields
 type client struct {
-	uname       string
-	newUname    string
-	newChanName string
-	id          string
-	c           *net.Conn
-	scn         *bufio.Scanner
-	ch          *channel
-	serv        *server
-	out         chan string
-	ok          chan bool
+	uname    string
+	newUname string
+	chanName string
+	id       string
+	c        *net.Conn
+	scn      *bufio.Scanner
+	ch       *channel
+	serv     *server
+	out      chan string
+	ok       chan bool
 }
 
 // manage client's activites, broadcasting, renaming, changing channel, private messaging and exiting
@@ -36,15 +36,16 @@ func (cl *client) manage() {
 		}
 	}
 	// get a valid channel from client
-	if cl.newChanName, err = cl.getSpaceTrimmed("channel"); err != nil {
+	if cl.chanName, err = cl.getSpaceTrimmed("channel"); err != nil {
 		return
 	}
 	cl.send("??? /help for usage info\n")
-	// loop through reading
+	// loop that adds to channel
+chanLoop:
 	for {
 		cl.serv.addToChan <- cl
 		<-cl.ok
-	readLoop:
+		// loop through reading
 		for cl.scn.Scan() {
 			m := escapeUnsafe(strings.TrimSpace(cl.scn.Text()))
 			if m == "" {
@@ -52,11 +53,12 @@ func (cl *client) manage() {
 			}
 			switch {
 			case strings.HasPrefix(m, "/chch "):
-				cl.newChanName = m[6:]
-				logger.printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
-				cl.send("changing to channel " + cl.newChanName + "\n")
+				cl.chanName = m[6:]
+				logger.printf("%s changing to channel %s from %s", cl.id, cl.chanName, cl.ch.name)
+				cl.send("*** changing to channel " + cl.chanName + "\n")
 				cl.ch.rmClient <- cl
-				break readLoop
+				<-cl.ok
+				continue chanLoop
 			case strings.HasPrefix(m, "/chun "):
 				cl.newUname = m[6:]
 				cl.registerNewUname()
@@ -79,7 +81,7 @@ func (cl *client) manage() {
 				cl.send("??? /msg  <uname> <message>    - private message\n")
 				cl.send("??? /close                     - close connection\n")
 			default:
-				logger.printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
+				logger.printf("%s broadcasting %s in channel %s", cl.id, m, cl.chanName)
 				cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 			}
 		}
@@ -116,6 +118,7 @@ func (cl *client) shutdown() {
 	(*cl.c).Close()
 	if cl.ch != nil {
 		cl.ch.rmClient <- cl
+		<-cl.ok
 	}
 	if cl.uname != "" {
 		cl.serv.remUname <- cl

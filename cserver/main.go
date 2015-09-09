@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-// global logger
+// global filelogger
 var logger *fileLogger
 
 func main() {
@@ -32,7 +32,6 @@ func main() {
 	go func() {
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		//TODO logging concurrently safe
 		logger.println("got signal", <-sigs)
 		logger.fatal("exiting")
 	}()
@@ -57,6 +56,5 @@ func main() {
 		addToChan: make(chan *client),
 		rmChan:    make(chan string),
 		msgUser:   make(chan message)}
-
-	logger.fatalln(s.listenAndServe(addr))
+	logger.fatal(s.listenAndServe(addr))
 }

@@ -87,20 +87,20 @@ func (s *server) manage() {
 			logger.printf("%s deregistering uname", cl.id)
 			delete(unameList, cl.uname)
 		case cl := <-s.addToChan:
-			if channel, exists := chanList[cl.newChanName]; exists {
+			if channel, exists := chanList[cl.chanName]; exists {
 				channel.addClient <- cl
 				break
 			}
-			logger.printf("%s creating channel %s", cl.id, cl.newChanName)
-			chanList[cl.newChanName] = &channel{
-				name:      cl.newChanName,
+			logger.printf("%s creating channel %s", cl.id, cl.chanName)
+			chanList[cl.chanName] = &channel{
+				name:      cl.chanName,
 				serv:      cl.serv,
 				addClient: make(chan *client),
 				rmClient:  make(chan *client),
 				newUname:  make(chan *client),
 				broadcast: make(chan string)}
-			go chanList[cl.newChanName].manage()
-			chanList[cl.newChanName].addClient <- cl
+			go chanList[cl.chanName].manage()
+			chanList[cl.chanName].addClient <- cl
 		case name := <-s.rmChan:
 			delete(chanList, name)
 		case m := <-s.msgUser:
