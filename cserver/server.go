@@ -6,12 +6,14 @@ import (
 	"time"
 )
 
+// represents the chat server
 type server struct {
-	addUname  chan *client
-	remUname  chan *client
-	addToChan chan *client
-	rmChan    chan string
-	msgUser   chan message
+	addUname    chan *client
+	remUname    chan *client
+	addToChan   chan *client
+	remFromChan chan *client
+	rmChan      chan bool
+	msgUser     chan message
 }
 
 // tcpKeepAliveListener wraps a TCPListener to
@@ -31,14 +33,17 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	return tc, nil
 }
 
+// begin listening and serving TCP connections on addr
 func (s *server) listenAndServe(addr string) error {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 	ln := tcpKeepAliveListener{l.(*net.TCPListener)}
+	// begin managing the server
 	go s.manage()
 	logger.printf("%s is listening", addr)
+	// loop forever accepting and serving connections
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -49,6 +54,7 @@ func (s *server) listenAndServe(addr string) error {
 	}
 }
 
+// initalize new client and begin its management
 func (s *server) initializeClient(c *net.Conn) {
 	logger.printf("%s initializing", (*c).RemoteAddr().String())
 	cl := &client{
@@ -63,11 +69,15 @@ func (s *server) initializeClient(c *net.Conn) {
 	go cl.manage()
 }
 
+// manage the server's channels to add/rename/rem unames,
+// add/rem channels, add to channels and msg users
 func (s *server) manage() {
 	unameList := make(map[string]*client)
 	chanList := make(map[string]*channel)
+	// loop forever listening on the channels to do things
 	for {
 		select {
+		// add/rename a uname based on whether or not a previous uname is there
 		case cl := <-s.addUname:
 			if _, used := unameList[cl.newUname]; used {
 				cl.ok <- false
@@ -83,12 +93,14 @@ func (s *server) manage() {
 				delete(unameList, cl.uname)
 				cl.ch.newUname <- cl
 			}
+		// remove uname
 		case cl := <-s.remUname:
 			logger.printf("%s deregistering uname", cl.id)
 			delete(unameList, cl.uname)
+		// add cl to cl.chanName, create if doesn't exist
 		case cl := <-s.addToChan:
-			if channel, exists := chanList[cl.chanName]; exists {
-				channel.addClient <- cl
+			if ch, exists := chanList[cl.chanName]; exists {
+				ch.addClient <- cl
 				break
 			}
 			logger.printf("%s creating channel %s", cl.id, cl.chanName)
@@ -101,8 +113,13 @@ func (s *server) manage() {
 				broadcast: make(chan string)}
 			go chanList[cl.chanName].manage()
 			chanList[cl.chanName].addClient <- cl
-		case name := <-s.rmChan:
-			delete(chanList, name)
+			// remove channel
+		case cl := <-s.remFromChan:
+			cl.ch.rmClient <- cl
+			if <-s.rmChan {
+				delete(chanList, cl.chanName)
+			}
+		// private message a user
 		case m := <-s.msgUser:
 			if to, exists := unameList[m.to]; exists {
 				logger.printf("%s pming %s; %s", m.from.id, to.id, m.payload)

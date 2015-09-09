@@ -30,7 +30,7 @@ func (ch *channel) manage() {
 			cliList[cl.uname] = cl
 			cl.ok <- true
 			broadcast("+++ " + cl.uname + " has joined the channel")
-		// remove clients, if last client return function and message server to remove channel
+		// remove clients, if last client return function and message server to remove channel //TODO fix this to work concurrently
 		case cl := <-ch.rmClient:
 			logger.printf("%s leaving channel %s", cl.id, ch.name)
 			cl.send("*** leaving channel " + ch.name + "\n")
@@ -39,7 +39,7 @@ func (ch *channel) manage() {
 			cl.ok <- true
 			if len(cliList) == 0 {
 				logger.printf("%s shutting down channel %s", cl.id, ch.name)
-				ch.serv.rmChan <- ch.name
+				ch.serv.rmChan <- true
 				return
 			}
 		// rename client's uname

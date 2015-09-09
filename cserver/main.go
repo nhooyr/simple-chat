@@ -14,15 +14,18 @@ var logger *fileLogger
 
 // parse flags, setup logging and then launch server
 func main() {
+	// flag variables
 	var (
 		stderr, errPrefix bool
 		addr, logPath     string
 	)
+	// declare and parse flags
 	flag.BoolVar(&stderr, "e", false, "stderr logging")
 	flag.BoolVar(&errPrefix, "t", false, "stderr logging prefix (name, timestamp)")
 	flag.StringVar(&addr, "l", "", "listening address; ip:port")
 	flag.StringVar(&logPath, "p", "", "path to logfile")
 	flag.Parse()
+	// setup logging based on flags
 	logger = &fileLogger{stderr: stderr}
 	if errPrefix == false {
 		log.SetFlags(0)
@@ -44,17 +47,16 @@ func main() {
 		}
 		logger.Logger = log.New(logFile, "cserver: ", 3)
 	}
-	if addr == "" {
-		log.Fatal("no address given, -h for more info")
-	}
+	// fix listen address if just port and begin listening
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
 	s := &server{
-		addUname:  make(chan *client),
-		remUname:  make(chan *client),
-		addToChan: make(chan *client),
-		rmChan:    make(chan string),
-		msgUser:   make(chan message)}
+		addUname:    make(chan *client),
+		remUname:    make(chan *client),
+		addToChan:   make(chan *client),
+		remFromChan: make(chan *client),
+		rmChan:      make(chan bool),
+		msgUser:     make(chan message)}
 	log.Fatal(s.listenAndServe(addr))
 }

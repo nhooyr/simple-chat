@@ -56,7 +56,7 @@ chanLoop:
 				cl.chanName = m[6:]
 				logger.printf("%s changing to channel %s from %s", cl.id, cl.chanName, cl.ch.name)
 				cl.send("*** changing to channel " + cl.chanName + "\n")
-				cl.ch.rmClient <- cl
+				cl.serv.remFromChan <- cl
 				<-cl.ok
 				continue chanLoop
 			case strings.HasPrefix(m, "/chun "):
@@ -117,7 +117,7 @@ func (cl *client) shutdown() {
 	(*cl.c).Write([]byte("*** shutting down\n"))
 	(*cl.c).Close()
 	if cl.ch != nil {
-		cl.ch.rmClient <- cl
+		cl.serv.remFromChan <- cl
 		<-cl.ok
 	}
 	if cl.uname != "" {
