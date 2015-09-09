@@ -99,25 +99,25 @@ func (s *server) manage() {
 			delete(unameList, cl.uname)
 		// add cl to cl.chanName, create if doesn't exist
 		case cl := <-s.addToChan:
-			if ch, exists := chanList[cl.chanName]; exists {
+			if ch, exists := chanList[cl.newChanName]; exists {
 				ch.addClient <- cl
 				break
 			}
-			logger.printf("%s creating channel %s", cl.id, cl.chanName)
-			chanList[cl.chanName] = &channel{
-				name:      cl.chanName,
+			logger.printf("%s creating channel %s", cl.id, cl.newChanName)
+			chanList[cl.newChanName] = &channel{
+				name:      cl.newChanName,
 				serv:      cl.serv,
 				addClient: make(chan *client),
 				rmClient:  make(chan *client),
 				newUname:  make(chan *client),
 				broadcast: make(chan string)}
-			go chanList[cl.chanName].manage()
-			chanList[cl.chanName].addClient <- cl
-			// remove channel
+			go chanList[cl.newChanName].manage()
+			chanList[cl.newChanName].addClient <- cl
+			// remove cl it's channel, shutdown channel if last client
 		case cl := <-s.remFromChan:
 			cl.ch.rmClient <- cl
 			if <-s.rmChan {
-				delete(chanList, cl.chanName)
+				delete(chanList, cl.ch.name)
 			}
 		// private message a user
 		case m := <-s.msgUser:

@@ -11,16 +11,16 @@ import (
 
 // represents a client and its various fields
 type client struct {
-	uname    string
-	newUname string
-	chanName string
-	id       string
-	c        *net.Conn
-	scn      *bufio.Scanner
-	ch       *channel
-	serv     *server
-	out      chan string
-	ok       chan bool
+	uname       string
+	newUname    string
+	newChanName string
+	id          string
+	c           *net.Conn
+	scn         *bufio.Scanner
+	ch          *channel
+	serv        *server
+	out         chan string
+	ok          chan bool
 }
 
 // manage client's activites, broadcasting, renaming, changing channel, private messaging and exiting
@@ -36,7 +36,7 @@ func (cl *client) manage() {
 		}
 	}
 	// get a valid channel from client
-	if cl.chanName, err = cl.getSpaceTrimmed("channel"); err != nil {
+	if cl.newChanName, err = cl.getSpaceTrimmed("channel"); err != nil {
 		return
 	}
 	cl.send("??? /help for usage info\n")
@@ -53,9 +53,9 @@ chanLoop:
 			}
 			switch {
 			case strings.HasPrefix(m, "/chch "):
-				cl.chanName = m[6:]
-				logger.printf("%s changing to channel %s from %s", cl.id, cl.chanName, cl.ch.name)
-				cl.send("*** changing to channel " + cl.chanName + "\n")
+				cl.newChanName = m[6:]
+				logger.printf("%s changing to channel %s from %s", cl.id, cl.newChanName, cl.ch.name)
+				cl.send("*** changing to channel " + cl.newChanName + "\n")
 				cl.serv.remFromChan <- cl
 				<-cl.ok
 				continue chanLoop
@@ -81,7 +81,7 @@ chanLoop:
 				cl.send("??? /msg  <uname> <message>    - private message\n")
 				cl.send("??? /close                     - close connection\n")
 			default:
-				logger.printf("%s broadcasting %s in channel %s", cl.id, m, cl.chanName)
+				logger.printf("%s broadcasting %s in channel %s", cl.id, m, cl.newChanName)
 				cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 			}
 		}
