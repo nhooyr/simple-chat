@@ -19,7 +19,7 @@ func main() {
 	}
 	addr := os.Args[1]
 	// fix addrs with just port
-	if !strings.Contain(addr, ":") {
+	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
 	// create a dialer for tcp keep alive and dial the given host:port
