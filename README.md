@@ -31,3 +31,5 @@ Run and connect to host:port (can be just port)
 #### Help
 
 Once connected via a client, type /help to see help on the different commands you can use on the server.
+
+#### CONSTANTLY RUNNING ON AUBBLE.COM:80
