@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"io"
 	"net"
 	"regexp"
 	"strconv"
@@ -25,20 +24,18 @@ type client struct {
 
 // manage client's activites, broadcasting, renaming, changing channel, private messaging and exiting
 func (cl *client) manage() {
-	var err error
+	defer func() {
+		recover()
+	}()
 	// loop until we get a valid username from the client that registers
 	for {
-		if cl.newUname, err = cl.getSpaceTrimmed("username"); err != nil {
-			return
-		}
+		cl.newUname = cl.getSpaceTrimmed("username")
 		if cl.registerNewUname() {
 			break
 		}
 	}
 	// get a valid channel from client
-	if cl.newChanName, err = cl.getSpaceTrimmed("channel"); err != nil {
-		return
-	}
+	cl.newChanName = cl.getSpaceTrimmed("channel")
 	cl.send("??? /help for usage info\n")
 	// loop that adds to channel
 chanLoop:
@@ -85,9 +82,6 @@ chanLoop:
 				cl.ch.broadcast <- "--> " + cl.uname + ": " + m
 			}
 		}
-		if err = cl.scn.Err(); err != nil {
-			logger.printf("%s got err %s", cl.id, err)
-		}
 		cl.shutdown()
 		return
 	}
@@ -125,7 +119,7 @@ func (cl *client) shutdown() {
 	}
 }
 
-func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
+func (cl *client) getSpaceTrimmed(what string) (reply string) {
 	for {
 		cl.send("=== " + what + ": ")
 		if !cl.scn.Scan() {
@@ -135,11 +129,8 @@ func (cl *client) getSpaceTrimmed(what string) (reply string, err error) {
 			return
 		}
 	}
-	if err = cl.scn.Err(); err == nil {
-		err = io.EOF
-	}
 	cl.shutdown()
-	return
+	panic(struct{}{})
 }
 
 var controlChar = regexp.MustCompile("[\x00-\x09\x0B-\x1f]")
