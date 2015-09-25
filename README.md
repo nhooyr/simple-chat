@@ -1,6 +1,8 @@
 # gochat
 cool little chat server I made for telnet/nc, client included for op timestamps :)
 
+#### CONSTANTLY RUNNING ON AUBBLE.COM:444, YOU CAN USE TELNET/NC TO CONNECT OR THE CLIENT
+
 ## Install
 
 The commands will install into $GOPATH/bin, just make sure you have it in your $PATH.
@@ -31,5 +33,3 @@ Run and connect to host:port (can be just port)
 #### Help
 
 Once connected via a client, type /help to see help on the different commands you can use on the server.
-
-#### CONSTANTLY RUNNING ON AUBBLE.COM:80
