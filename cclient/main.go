@@ -13,6 +13,7 @@ import (
 
 func main() {
 	log.SetPrefix("cclient: ")
+	log.SetFlags(0)
 	// check for addr in os.Args, exit if no addr
 	if len(os.Args) < 2 {
 		log.Fatal("cclient host:port")
