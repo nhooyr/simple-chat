@@ -1,7 +1,7 @@
 # gochat
 cool little chat server I made for telnet/nc, client included for op timestamps :)
 
-*Running on aubble.com:444, connect with telnet/nc or the provided client*
+**Running on aubble.com:444, connect with telnet/nc or the provided client**
 
 ## Install
 
