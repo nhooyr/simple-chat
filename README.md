@@ -1,7 +1,7 @@
 # gochat
 cool little chat server I made for telnet/nc, client included for op timestamps :)
 
-#### CONSTANTLY RUNNING ON nhooyr.COM:444, YOU CAN USE TELNET/NC TO CONNECT OR THE CLIENT
+#### Constantly running on aubble.com:444, you can connect with telnet/nc or use the provided client if you want the timestamps!
 
 ## Install
 
