@@ -65,7 +65,7 @@ func (s *server) initializeClient(c *net.Conn) {
 		out:  make(chan string, 255),
 		ok:   make(chan bool)}
 	go cl.writeLoop()
-	cl.send("*** welcome to the chat server\n")
+	cl.send("*** welcome to simple-chat\n")
 	go cl.manage()
 }
 
