@@ -11,9 +11,6 @@ type fileLogger struct {
 	// pointer to internal logger
 	*log.Logger
 
-	// path to logFile
-	logPath string
-
 	// whether or not to log to stderr
 	stderr bool
 }
