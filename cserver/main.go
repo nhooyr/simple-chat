@@ -37,7 +37,8 @@ func main() {
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		logger.println("got signal", <-sigs)
-		logger.fatal("exiting")
+		logger.println("exiting")
+		os.Exit(0)
 	}()
 	if logPath != "" {
 		logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
