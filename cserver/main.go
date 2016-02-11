@@ -57,6 +57,7 @@ func main() {
 		addToChan:   make(chan *client),
 		remFromChan: make(chan *client),
 		rmChan:      make(chan bool),
-		msgUser:     make(chan message)}
+		msgUser:     make(chan message),
+	}
 	log.Fatal(s.listenAndServe(addr))
 }
